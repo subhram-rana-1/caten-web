@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { toast } from 'sonner';
 import Header from '@/components/Header';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -16,7 +17,35 @@ export default function MainApp() {
   const [explainedWords, setExplainedWords] = useState<any[]>([]);
   const [manualWords, setManualWords] = useState<string[]>([]);
   const [explanations, setExplanations] = useState<any[]>([]);
+  const explanationsRef = useRef<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [updateCounter, setUpdateCounter] = useState(0);
+  const [forceUpdate, setForceUpdate] = useState(0);
+  const [explanationKey, setExplanationKey] = useState(0);
+  const [explanationTrigger, setExplanationTrigger] = useState(0);
+  const [explainedWordNames, setExplainedWordNames] = useState<Set<string>>(new Set());
+  
+  // Force immediate explanation update using a different approach
+  const addExplanationImmediately = useCallback((newInfo: any) => {
+    console.log('Adding explanation immediately for:', newInfo.word);
+    
+    // Update ref immediately
+    explanationsRef.current = [...explanationsRef.current, newInfo];
+    
+    // Track explained word names for color changes
+    setExplainedWordNames(prev => new Set([...prev, newInfo.word]));
+    
+    // Force immediate update by using a different state pattern
+    const currentTime = Date.now();
+    setExplanations([...explanationsRef.current]);
+    setUpdateCounter(currentTime);
+    setForceUpdate(currentTime);
+    setExplanationKey(currentTime);
+    setExplanationTrigger(currentTime);
+    
+    // Show toast
+    toast.success(`Explanation for "${newInfo.word}" received!`);
+  }, []);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSmartSelecting, setIsSmartSelecting] = useState(false);
@@ -44,6 +73,8 @@ export default function MainApp() {
     setExplainedWords([]);
     setManualWords([]);
     setExplanations([]);
+    explanationsRef.current = []; // Reset ref
+    setExplainedWordNames(new Set()); // Reset explained word names
     setSearchTerm('');
     setSearchResults([]);
     setIsCompleted(false);
@@ -254,26 +285,23 @@ export default function MainApp() {
               
               // Handle both word_info (singular) and words_info (plural) formats
               if (parsed.word_info) {
-                // Single word format from backend
+                // Single word format from backend - process immediately
                 const newInfo = parsed.word_info;
                 console.log('Processing single word explanation for:', newInfo.word);
                 
-                setExplanations(prev => {
-                  // Check if we already have this word
-                  const existingIndex = prev.findIndex(exp => exp.word === newInfo.word);
-                  
-                  if (existingIndex === -1) {
-                    // New word, add it immediately
-                    console.log('Adding new explanation for:', newInfo.word);
-                    return [...prev, newInfo];
-                  } else {
-                    // Word exists, update it
-                    console.log('Updating explanation for:', newInfo.word);
-                    const updated = [...prev];
-                    updated[existingIndex] = newInfo;
-                    return updated;
-                  }
-                });
+                // Check if we already have this word
+                const existingIndex = explanationsRef.current.findIndex(exp => exp.word === newInfo.word);
+                
+                if (existingIndex === -1) {
+                  // New word, add it immediately using the working function
+                  addExplanationImmediately(newInfo);
+                } else {
+                  // Word exists, update it
+                  console.log('Updating explanation for:', newInfo.word);
+                  explanationsRef.current[existingIndex] = newInfo;
+                  setExplanations([...explanationsRef.current]);
+                  setUpdateCounter(prev => prev + 1);
+                }
                 
                 // Mark word as explained
                 setExplainedWords(prev => {
@@ -291,42 +319,39 @@ export default function MainApp() {
                 });
                 
               } else if (parsed.words_info && Array.isArray(parsed.words_info)) {
-                // Multiple words format (fallback)
-                parsed.words_info.forEach(newInfo => {
+                // Multiple words format (fallback) - process each word individually
+                parsed.words_info.forEach((newInfo: any, index: number) => {
                   console.log('Processing explanation for:', newInfo.word);
                   
-                  setExplanations(prev => {
-                    const existingIndex = prev.findIndex(exp => exp.word === newInfo.word);
-                    
-                    if (existingIndex === -1) {
-                      console.log('Adding new explanation for:', newInfo.word);
-                      return [...prev, newInfo];
-                    } else {
-                      console.log('Updating explanation for:', newInfo.word);
-                      const updated = [...prev];
-                      updated[existingIndex] = newInfo;
-                      return updated;
-                    }
-                  });
-                });
-                
-                if (parsed.words_info.length > 0) {
-                  const newlyExplainedWords = parsed.words_info.map(info => ({
-                    word: info.word,
-                    index: info.location?.index || 0,
-                    length: info.location?.length || info.word.length,
-                  }));
+                  // Check if we already have this word
+                  const existingIndex = explanationsRef.current.findIndex(exp => exp.word === newInfo.word);
                   
+                  if (existingIndex === -1) {
+                    // New word, add it immediately using the working function
+                    addExplanationImmediately(newInfo);
+                  } else {
+                    // Word exists, update it
+                    console.log('Updating explanation for:', newInfo.word);
+                    explanationsRef.current[existingIndex] = newInfo;
+                    setExplanations([...explanationsRef.current]);
+                    setUpdateCounter(prev => prev + 1);
+                  }
+                  
+                  // Mark word as explained
                   setExplainedWords(prev => {
                     const existing = [...prev];
-                    newlyExplainedWords.forEach(newWord => {
-                      if (!existing.some(exp => exp.word === newWord.word)) {
-                        existing.push(newWord);
-                      }
-                    });
+                    const newWord = {
+                      word: newInfo.word,
+                      index: newInfo.location?.index || 0,
+                      length: newInfo.location?.length || newInfo.word.length,
+                    };
+                    
+                    if (!existing.some(exp => exp.word === newWord.word)) {
+                      existing.push(newWord);
+                    }
                     return existing;
                   });
-                }
+                });
               } else {
                 console.warn('Invalid data format:', parsed);
               }
@@ -336,7 +361,7 @@ export default function MainApp() {
           }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       if (error.name === 'AbortError') {
         // User stopped the stream
         setIsStreaming(false);
@@ -681,7 +706,7 @@ export default function MainApp() {
                 : React.createElement('textarea', {
                     placeholder: 'Paste or enter your text here...',
                     value: text,
-                    onChange: (e) => {
+                    onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => {
                       if (explainedWords.length === 0) {
                         setText(e.target.value);
                       }
@@ -789,15 +814,27 @@ export default function MainApp() {
                 
                 manualWords.length > 0 
                   ? React.createElement('div', { className: 'flex flex-wrap gap-2' },
-                      manualWords.map(word =>
-                        React.createElement('div', { key: word, className: 'inline-flex items-center bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-medium' },
+                      manualWords.map(word => {
+                        const isExplained = explainedWordNames.has(word);
+                        return React.createElement('div', { 
+                          key: word, 
+                          className: `inline-flex items-center px-3 py-1 rounded-full text-xs font-medium transition-colors duration-200 ${
+                            isExplained 
+                              ? 'bg-green-100 text-green-700' 
+                              : 'bg-purple-100 text-purple-700'
+                          }` 
+                        },
                           word,
                           React.createElement('button', {
                             onClick: () => setManualWords(prev => prev.filter(w => w !== word)),
-                            className: 'ml-2 w-4 h-4 rounded-full hover:bg-purple-200 flex items-center justify-center'
+                            className: `ml-2 w-4 h-4 rounded-full flex items-center justify-center transition-colors duration-200 ${
+                              isExplained 
+                                ? 'hover:bg-green-200' 
+                                : 'hover:bg-purple-200'
+                            }`
                           }, '×')
-                        )
-                      )
+                        );
+                      })
                     )
                   : React.createElement('div', { className: 'text-center py-8 text-gray-500' },
                       React.createElement('div', { className: 'text-4xl mb-2' }, '📝'),
@@ -805,21 +842,40 @@ export default function MainApp() {
                     )
               ),
 
-              manualWords.length > 0 && React.createElement('div', { className: 'flex space-x-2' },
-                React.createElement('button', {
-                  onClick: handleExplainWords,
-                  disabled: isExplaining,
-                  className: 'flex-1 inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-12 text-base disabled:opacity-50'
-                },
-                  isExplaining && React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2' }),
-                  isExplaining ? 'Explaining...' : `Explain ${manualWords.length} word${manualWords.length > 1 ? 's' : ''}`
+              manualWords.length > 0 && React.createElement('div', { className: 'space-y-3' },
+                // Explain button and Stop button
+                React.createElement('div', { className: 'flex space-x-2' },
+                  React.createElement('button', {
+                    onClick: handleExplainWords,
+                    disabled: isExplaining || manualWords.every(word => explainedWordNames.has(word)),
+                    className: 'flex-1 inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-12 text-base disabled:opacity-50'
+                  },
+                    isExplaining && React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2' }),
+                    isExplaining ? 'Explaining...' : `Explain ${manualWords.filter(word => !explainedWordNames.has(word)).length} word${manualWords.filter(word => !explainedWordNames.has(word)).length > 1 ? 's' : ''}`
+                  ),
+                  
+                  // Stop button for Words tab
+                  isStreaming && React.createElement('button', {
+                    onClick: handleStopStreaming,
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-12 px-4 text-base'
+                  }, 'Stop')
                 ),
                 
-                // Stop button for Words tab
-                isStreaming && React.createElement('button', {
-                  onClick: handleStopStreaming,
-                  className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-12 px-4 text-base'
-                }, 'Stop')
+                // Clear all button
+                React.createElement('button', {
+                  onClick: () => {
+                    setManualWords([]);
+                    setExplainedWordNames(new Set());
+                    setExplanations([]);
+                    explanationsRef.current = [];
+                    setExplainedWords([]);
+                    setIsCompleted(false);
+                    setIsStreaming(false);
+                    setIsExplaining(false);
+                    toast.success('All words and explanations cleared!');
+                  },
+                  className: 'w-full inline-flex items-center justify-center rounded-lg font-medium bg-gray-500 text-white hover:bg-gray-600 h-10 text-sm'
+                }, 'Clear All')
               )
             )
           ),
@@ -854,8 +910,14 @@ export default function MainApp() {
             ),
 
 
+            
             // Scrollable Explanation Cards Container
-            React.createElement('div', { className: 'flex-1 overflow-y-auto max-h-96 space-y-4' },
+            React.createElement('div', { 
+              key: explanationKey,
+              className: 'flex-1 overflow-y-auto max-h-96 space-y-4' 
+            },
+              
+              
               sortedExplanations.length > 0 
                 ? sortedExplanations.map((explanation, index) => {
                     const isExpanded = expandedCards.has(explanation.word);
@@ -864,25 +926,25 @@ export default function MainApp() {
                     return React.createElement('div', { key: index, className: 'bg-white rounded-lg border border-gray-200 overflow-hidden' },
                       // Card Header (always visible)
                       React.createElement('div', {
-                        className: 'p-4 cursor-pointer hover:bg-gray-50 transition-colors',
+                        className: 'p-4 cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100',
                         onClick: () => toggleCardExpansion(explanation.word)
                       },
                         React.createElement('div', { className: 'flex items-center justify-between' },
-                          React.createElement('button', {
-                            className: 'font-medium text-gray-900 hover:text-primary-600 cursor-pointer',
-                            onClick: (e) => {
-                              e.stopPropagation();
-                              setActiveTab('text'); // Scroll to word in text
-                            }
-                          }, explanation.word),
-                          React.createElement('button', { className: 'text-xs text-purple-600' },
-                            React.createElement('svg', { 
-                              className: `h-4 w-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`, 
-                              fill: 'none', 
-                              stroke: 'currentColor', 
-                              viewBox: '0 0 24 24' 
-                            },
-                              React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 9l-7 7-7-7' })
+                          React.createElement('div', { className: 'flex items-center space-x-2' },
+                            React.createElement('span', {
+                              className: 'font-medium text-gray-900'
+                            }, explanation.word)
+                          ),
+                          React.createElement('div', { className: 'flex items-center space-x-2' },
+                            React.createElement('span', { className: 'text-xs text-purple-600' },
+                              React.createElement('svg', { 
+                                className: `h-4 w-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`, 
+                                fill: 'none', 
+                                stroke: 'currentColor', 
+                                viewBox: '0 0 24 24' 
+                              },
+                                React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 9l-7 7-7-7' })
+                              )
                             )
                           )
                         )
@@ -891,7 +953,7 @@ export default function MainApp() {
                       // Collapsible Content
                       isExpanded && React.createElement('div', { className: 'px-4 pb-4 border-t border-gray-100' },
                         React.createElement('p', { className: 'text-sm text-gray-700 mb-3 mt-3' }, explanation.meaning),
-                        explanation.examples?.map((example, idx) => {
+                        explanation.examples?.map((example: string, idx: number) => {
                           // Make target word bold and purple in the sentence
                           const highlightedExample = example.replace(
                             new RegExp(`\\b${explanation.word}\\b`, 'gi'),
@@ -972,3 +1034,4 @@ export default function MainApp() {
     })
   );
 }
+
