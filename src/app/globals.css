@@ -141,6 +141,47 @@
     }
   }
 
+  /* Smooth dialog animations */
+  @keyframes dialogFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes dialogFadeOut {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes dialogSlideIn {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+  }
+
+  @keyframes dialogSlideOut {
+    from {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.95);
+    }
+  }
+
   @keyframes pulse-slow {
     0%, 100% {
       opacity: 1;
@@ -173,15 +214,43 @@
   }
 
   .animate-fade-in {
-    animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: fadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .animate-slide-up {
-    animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: slideUp 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .animate-slide-down {
-    animation: slideDown 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: slideDown 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Optimized dialog animations for better performance */
+  .dialog-overlay {
+    will-change: opacity;
+    transform: translateZ(0);
+  }
+
+  .dialog-content {
+    will-change: transform, opacity;
+    transform: translateZ(0);
+  }
+
+  /* Smooth dialog animation classes */
+  .animate-dialog-fade-in {
+    animation: dialogFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-dialog-fade-out {
+    animation: dialogFadeOut 0.2s cubic-bezier(0.4, 0, 1, 1);
+  }
+
+  .animate-dialog-slide-in {
+    animation: dialogSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-dialog-slide-out {
+    animation: dialogSlideOut 0.2s cubic-bezier(0.4, 0, 1, 1);
   }
 
   .animate-pulse-slow {

@@ -53,7 +53,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
+        <DialogFooter className="flex-col-reverse sm:flex-row gap-2 justify-center">
           <Button variant="secondary" onClick={handleCancel}>
             {cancelText}
           </Button>

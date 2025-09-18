@@ -843,39 +843,42 @@ export default function MainApp() {
               ),
 
               manualWords.length > 0 && React.createElement('div', { className: 'space-y-3' },
-                // Explain button and Stop button
-                React.createElement('div', { className: 'flex space-x-2' },
-                  React.createElement('button', {
-                    onClick: handleExplainWords,
-                    disabled: isExplaining || manualWords.every(word => explainedWordNames.has(word)),
-                    className: 'flex-1 inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-12 text-base disabled:opacity-50'
-                  },
-                    isExplaining && React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2' }),
-                    isExplaining ? 'Explaining...' : `Explain ${manualWords.filter(word => !explainedWordNames.has(word)).length} word${manualWords.filter(word => !explainedWordNames.has(word)).length > 1 ? 's' : ''}`
+                // Button row with proper layout: Explain (left) -> Stop (when needed) -> Clear All (right)
+                React.createElement('div', { className: 'flex justify-between items-center' },
+                  // Left side: Explain button and Stop button (when needed)
+                  React.createElement('div', { className: 'flex space-x-2' },
+                    React.createElement('button', {
+                      onClick: handleExplainWords,
+                      disabled: isExplaining || manualWords.every(word => explainedWordNames.has(word)),
+                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-12 px-6 text-base disabled:opacity-50'
+                    },
+                      isExplaining && React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2' }),
+                      isExplaining ? 'Explaining...' : `Explain ${manualWords.filter(word => !explainedWordNames.has(word)).length} word${manualWords.filter(word => !explainedWordNames.has(word)).length > 1 ? 's' : ''}`
+                    ),
+                    
+                    // Stop button for Words tab - shows right next to Explain button when needed
+                    isStreaming && React.createElement('button', {
+                      onClick: handleStopStreaming,
+                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-12 px-6 text-base'
+                    }, 'Stop')
                   ),
                   
-                  // Stop button for Words tab
-                  isStreaming && React.createElement('button', {
-                    onClick: handleStopStreaming,
-                    className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-12 px-4 text-base'
-                  }, 'Stop')
-                ),
-                
-                // Clear all button
-                React.createElement('button', {
-                  onClick: () => {
-                    setManualWords([]);
-                    setExplainedWordNames(new Set());
-                    setExplanations([]);
-                    explanationsRef.current = [];
-                    setExplainedWords([]);
-                    setIsCompleted(false);
-                    setIsStreaming(false);
-                    setIsExplaining(false);
-                    toast.success('All words and explanations cleared!');
-                  },
-                  className: 'w-full inline-flex items-center justify-center rounded-lg font-medium bg-gray-500 text-white hover:bg-gray-600 h-10 text-sm'
-                }, 'Clear All')
+                  // Right side: Clear all button
+                  React.createElement('button', {
+                    onClick: () => {
+                      setManualWords([]);
+                      setExplainedWordNames(new Set());
+                      setExplanations([]);
+                      explanationsRef.current = [];
+                      setExplainedWords([]);
+                      setIsCompleted(false);
+                      setIsStreaming(false);
+                      setIsExplaining(false);
+                      toast.success('All words and explanations cleared!');
+                    },
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium bg-gray-500 text-white hover:bg-gray-600 h-10 px-6 text-sm'
+                  }, 'Clear All')
+                )
               )
             )
           ),
