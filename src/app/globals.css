@@ -253,6 +253,42 @@
     animation: dialogSlideOut 0.2s cubic-bezier(0.4, 0, 1, 1);
   }
 
+  /* Smooth tab transitions */
+  @keyframes tabFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes tabFadeOut {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+  }
+
+  .animate-tab-fade-in {
+    animation: tabFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .animate-tab-fade-out {
+    animation: tabFadeOut 0.2s cubic-bezier(0.4, 0, 1, 1);
+  }
+
+  .tab-content {
+    will-change: opacity, transform;
+    transform: translateZ(0);
+  }
+
   .animate-pulse-slow {
     animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }

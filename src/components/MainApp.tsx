@@ -12,6 +12,8 @@ type TabType = 'image' | 'text' | 'words';
 export default function MainApp() {
   // State management
   const [activeTab, setActiveTab] = useState<TabType>('image'); // Default landing view
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [displayedTab, setDisplayedTab] = useState<TabType>('image');
   const [text, setText] = useState('');
   const [selectedWords, setSelectedWords] = useState<any[]>([]);
   const [explainedWords, setExplainedWords] = useState<any[]>([]);
@@ -87,18 +89,27 @@ export default function MainApp() {
     toast.error(message);
   };
 
-  // Tab switching with confirmation dialog
+  // Tab switching with confirmation dialog and smooth transitions
   const handleTabChange = (newTab: TabType) => {
-    if (newTab === activeTab) return;
+    if (newTab === activeTab || isTransitioning) return;
     
     if (hasData()) {
       setShowConfirmDialog(true);
       setConfirmAction(() => () => {
         clearAllData();
         setActiveTab(newTab);
+        setDisplayedTab(newTab);
       });
     } else {
+      // Start transition
+      setIsTransitioning(true);
       setActiveTab(newTab);
+      
+      // Update displayed tab after a short delay for smooth transition
+      setTimeout(() => {
+        setDisplayedTab(newTab);
+        setIsTransitioning(false);
+      }, 150);
     }
   };
 
@@ -634,7 +645,7 @@ export default function MainApp() {
           // Left Side - Main Content (50%)
           React.createElement('div', { className: 'w-1/2 p-6' },
             // Image Tab Content
-            activeTab === 'image' && React.createElement('div', { className: 'space-y-6' },
+            displayedTab === 'image' && React.createElement('div', { className: `space-y-6 tab-content ${activeTab === 'image' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
               React.createElement('div', {
                 className: `relative border-2 border-dashed rounded-xl p-12 transition-all duration-300 cursor-pointer ${dragActive ? 'border-primary-500 bg-primary-50' : 'border-primary-200 hover:border-primary-300 bg-primary-25'} ${isLoading ? 'pointer-events-none opacity-50' : ''}`,
                 onDragEnter: (e) => { e.preventDefault(); setDragActive(true); },
@@ -687,7 +698,7 @@ export default function MainApp() {
             ),
 
             // Text Tab Content
-            activeTab === 'text' && React.createElement('div', { className: 'space-y-4' },
+            displayedTab === 'text' && React.createElement('div', { className: `space-y-4 tab-content ${activeTab === 'text' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
               // Search Bar
               React.createElement('input', {
                 type: 'text',
@@ -778,7 +789,7 @@ export default function MainApp() {
             ),
 
             // Words Tab Content
-            activeTab === 'words' && React.createElement('div', { className: 'space-y-6' },
+            displayedTab === 'words' && React.createElement('div', { className: `space-y-6 tab-content ${activeTab === 'words' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
               React.createElement('div', { className: 'flex space-x-2' },
                 React.createElement('input', {
                   type: 'text',
@@ -890,7 +901,7 @@ export default function MainApp() {
               React.createElement('div', { className: 'flex items-center justify-between mb-4' },
                 React.createElement('h3', { className: 'text-lg font-semibold text-gray-900' }, 'Explanations'),
                 // Only show sort buttons if not searching by words (manual words)
-                activeTab !== 'words' && React.createElement('div', { className: 'flex space-x-2' },
+                displayedTab !== 'words' && React.createElement('div', { className: 'flex space-x-2' },
                   React.createElement('button', {
                     onClick: () => setSortBy('complexity'),
                     className: `px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 ${sortBy === 'complexity' ? 'bg-primary-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
