@@ -289,6 +289,150 @@
     transform: translateZ(0);
   }
 
+  /* Smart explain overlay styles */
+  .text-canvas-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(0.3px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    border-radius: 0.5rem;
+  }
+
+  .loading-content {
+    text-align: center;
+    color: #7C1EE8;
+  }
+
+  .loading-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #7C1EE8;
+  }
+
+  .loading-icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 1rem;
+  }
+
+  /* Smart selecting animation */
+  @keyframes smartSelect {
+    0%, 100% {
+      transform: scale(1) rotate(0deg);
+      opacity: 1;
+    }
+    25% {
+      transform: scale(1.1) rotate(5deg);
+      opacity: 0.8;
+    }
+    50% {
+      transform: scale(1.05) rotate(-5deg);
+      opacity: 0.9;
+    }
+    75% {
+      transform: scale(1.08) rotate(3deg);
+      opacity: 0.85;
+    }
+  }
+
+  .smart-select-icon {
+    animation: smartSelect 2s ease-in-out infinite;
+  }
+
+  /* Explaining animation */
+  @keyframes explain {
+    0%, 100% {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+    25% {
+      transform: translateY(-4px) scale(1.05);
+      opacity: 0.9;
+    }
+    50% {
+      transform: translateY(-2px) scale(1.02);
+      opacity: 0.95;
+    }
+    75% {
+      transform: translateY(-6px) scale(1.08);
+      opacity: 0.85;
+    }
+  }
+
+  .explain-icon {
+    animation: explain 1.8s ease-in-out infinite;
+  }
+
+  /* Pulsing dots animation */
+  @keyframes pulseDots {
+    0%, 20% {
+      opacity: 0;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  .pulse-dots span {
+    animation: pulseDots 1.4s infinite;
+  }
+
+  .pulse-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .pulse-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  /* Sliding tab indicator */
+  .tab-container {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .tab-slider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: linear-gradient(135deg, #E9D5FF, #F3E8FF);
+    border-radius: 0.5rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1;
+  }
+
+  .tab-button {
+    position: relative;
+    z-index: 2;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .tab-button.active {
+    color: #7C1EE8;
+    font-weight: 600;
+  }
+
+  .tab-button:not(.active) {
+    color: #6B7280;
+  }
+
+  .tab-button:not(.active):hover {
+    color: #9527F5;
+  }
+
   .animate-pulse-slow {
     animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }

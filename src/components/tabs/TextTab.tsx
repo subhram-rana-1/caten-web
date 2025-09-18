@@ -211,7 +211,7 @@ const TextTab: React.FC<TextTabProps> = ({
         ) : (
           <TextArea
             ref={textAreaRef}
-            placeholder="Paste or enter your text here..."
+            placeholder="Paste your text here (Dont write manually)..."
             value={text}
             onChange={(e) => setText(e.target.value)}
             className="min-h-[300px] resize-none"

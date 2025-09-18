@@ -14,6 +14,7 @@ export default function MainApp() {
   const [activeTab, setActiveTab] = useState<TabType>('image'); // Default landing view
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [displayedTab, setDisplayedTab] = useState<TabType>('image');
+  const [sliderPosition, setSliderPosition] = useState({ left: 0, width: 0 });
   const [text, setText] = useState('');
   const [selectedWords, setSelectedWords] = useState<any[]>([]);
   const [explainedWords, setExplainedWords] = useState<any[]>([]);
@@ -52,7 +53,9 @@ export default function MainApp() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSmartSelecting, setIsSmartSelecting] = useState(false);
   const [isExplaining, setIsExplaining] = useState(false);
+  const [isSmartExplaining, setIsSmartExplaining] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [smartExplainPhase, setSmartExplainPhase] = useState<'idle' | 'selecting' | 'explaining'>('idle');
   const [isCompleted, setIsCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -66,6 +69,19 @@ export default function MainApp() {
   const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const tabRefs = useRef<{ [key in TabType]: HTMLButtonElement | null }>({
+    image: null,
+    text: null,
+    words: null,
+  });
+
+  // Initialize slider position on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      updateSliderPosition(activeTab);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   const hasData = () => text || selectedWords.length > 0 || explainedWords.length > 0 || manualWords.length > 0 || explanations.length > 0;
 
@@ -89,9 +105,28 @@ export default function MainApp() {
     toast.error(message);
   };
 
+  // Update slider position based on active tab
+  const updateSliderPosition = (tab: TabType) => {
+    const tabElement = tabRefs.current[tab];
+    if (tabElement) {
+      const container = tabElement.parentElement;
+      if (container) {
+        const containerRect = container.getBoundingClientRect();
+        const tabRect = tabElement.getBoundingClientRect();
+        setSliderPosition({
+          left: tabRect.left - containerRect.left,
+          width: tabRect.width,
+        });
+      }
+    }
+  };
+
   // Tab switching with confirmation dialog and smooth transitions
   const handleTabChange = (newTab: TabType) => {
     if (newTab === activeTab || isTransitioning) return;
+    
+    // Update slider position immediately for smooth sliding effect
+    updateSliderPosition(newTab);
     
     if (hasData()) {
       setShowConfirmDialog(true);
@@ -149,8 +184,17 @@ export default function MainApp() {
       if (data.text) {
         // On success: Switch to Text tab with extracted text auto-filled
         setText(data.text);
+        
+        // Switch to text tab with smooth transition
         setActiveTab('text');
-        toast.success('Text extracted successfully!');
+        setDisplayedTab('text');
+        
+        // Update slider position after a brief delay to ensure DOM is updated
+        setTimeout(() => {
+          updateSliderPosition('text');
+        }, 50);
+        
+        toast.success('Text extracted successfully! Switched to Text tab.');
       } else {
         throw new Error('No text extracted from image');
       }
@@ -198,10 +242,14 @@ export default function MainApp() {
 
   // Explain functionality with SSE streaming
   const handleExplainWords = async () => {
+    console.log('handleExplainWords called with selectedWords:', selectedWords);
+    console.log('handleExplainWords called with manualWords:', manualWords);
+    
     // For manual words, only explain words that haven't been explained yet
     let wordsToExplain;
     
     if (selectedWords.length > 0) {
+      console.log('Using selectedWords for explanation');
       wordsToExplain = selectedWords;
     } else {
       // Filter out already explained manual words
@@ -247,6 +295,10 @@ export default function MainApp() {
         ? text // Use original text for selected words
         : wordsToExplain.map(w => w.word).join(' '); // Use concatenated words for manual words
 
+      console.log('Making API call to /api/v1/words-explanation');
+      console.log('API text:', apiText);
+      console.log('Words to explain:', wordsToExplain);
+
       const response = await fetch('/api/v1/words-explanation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -256,6 +308,8 @@ export default function MainApp() {
         }),
         signal: controller.signal, // Add abort signal
       });
+
+      console.log('API response status:', response.status);
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
@@ -409,10 +463,13 @@ export default function MainApp() {
       return;
     }
 
-    // First, smart select words
-    setIsSmartSelecting(true);
+    setIsSmartExplaining(true);
+    setSmartExplainPhase('selecting');
 
     try {
+      console.log('Starting smart explain - calling important words API...');
+      
+      // Step 1: Call important words API
       const response = await fetch('/api/v1/important-words-from-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -422,21 +479,147 @@ export default function MainApp() {
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const data = await response.json();
-      const selectedWords = data.important_words_location || [];
+      const importantWords = data.important_words_location || [];
       
-      setSelectedWords(selectedWords);
-      setIsSmartSelecting(false);
-
-      // Then immediately click on Explain
-      if (selectedWords.length > 0) {
-        setTimeout(() => handleExplainWords(), 500);
-      } else {
+      console.log('Smart select response:', data);
+      console.log('Important words found:', importantWords);
+      
+      if (importantWords.length === 0) {
         showError('No important words found in the text');
+        setIsSmartExplaining(false);
+        return;
+      }
+
+      // Step 2: Mark words as selected in the text canvas
+      setSelectedWords(importantWords);
+      console.log('Words marked as selected:', importantWords);
+
+      // Step 3: Make API call to words explanation endpoint
+      console.log('Making API call to words explanation...');
+      setSmartExplainPhase('explaining');
+      
+      // Create abort controller for stopping the stream
+      const controller = new AbortController();
+      setAbortController(controller);
+
+      setIsExplaining(true);
+      setIsStreaming(true);
+      setIsCompleted(false);
+
+      const explanationResponse = await fetch('/api/v1/words-explanation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: text,
+          important_words_location: importantWords,
+        }),
+        signal: controller.signal,
+      });
+
+      console.log('Explanation API response status:', explanationResponse.status);
+
+      if (!explanationResponse.ok) throw new Error(`HTTP error! status: ${explanationResponse.status}`);
+
+      const reader = explanationResponse.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            
+            if (data === '[DONE]') {
+              // Show green tick and "COMPLETED" message
+              setIsStreaming(false);
+              setIsCompleted(true);
+              // Mark words as explained (change from purple to green background)
+              setExplainedWords(prev => [...prev, ...importantWords]);
+              setIsExplaining(false);
+              setSelectedWords([]); // Clear selected words as they are now explained
+              setAbortController(null);
+              setIsSmartExplaining(false);
+              setSmartExplainPhase('idle');
+              toast.success('All explanations completed!');
+              return;
+            }
+
+            try {
+              const parsed = JSON.parse(data);
+              console.log('Received SSE data:', parsed);
+              
+              // Handle both word_info (singular) and words_info (plural) formats
+              if (parsed.word_info) {
+                // Single word format from backend - process immediately
+                const newInfo = parsed.word_info;
+                console.log('Processing single word explanation for:', newInfo.word);
+                
+                // Check if we already have this word
+                const existingIndex = explanationsRef.current.findIndex(exp => exp.word === newInfo.word);
+                
+                if (existingIndex === -1) {
+                  // New word, add it immediately using the working function
+                  addExplanationImmediately(newInfo);
+                } else {
+                  // Word exists, update it
+                  console.log('Updating explanation for:', newInfo.word);
+                  explanationsRef.current[existingIndex] = newInfo;
+                  setExplanations([...explanationsRef.current]);
+                  setUpdateCounter(prev => prev + 1);
+                }
+                
+                // Mark word as explained
+                setExplainedWords(prev => {
+                  const existing = [...prev];
+                  const newWord = {
+                    word: newInfo.word,
+                    index: newInfo.location?.index || 0,
+                    length: newInfo.location?.length || newInfo.word.length,
+                  };
+                  
+                  if (!existing.some(exp => exp.word === newWord.word)) {
+                    existing.push(newWord);
+                  }
+                  return existing;
+                });
+              } else if (parsed.words_info && Array.isArray(parsed.words_info)) {
+                // Multiple words format from backend
+                console.log('Processing multiple word explanations:', parsed.words_info);
+                parsed.words_info.forEach((wordInfo: any) => {
+                  const existingIndex = explanationsRef.current.findIndex(exp => exp.word === wordInfo.word);
+                  
+                  if (existingIndex === -1) {
+                    addExplanationImmediately(wordInfo);
+                  } else {
+                    explanationsRef.current[existingIndex] = wordInfo;
+                    setExplanations([...explanationsRef.current]);
+                    setUpdateCounter(prev => prev + 1);
+                  }
+                });
+              }
+            } catch (parseError) {
+              console.error('Error parsing SSE data:', parseError);
+            }
+          }
+        }
       }
     } catch (error) {
       console.error('Error in smart explain:', error);
       showError('Failed to process text. Please try again.');
-      setIsSmartSelecting(false);
+      setIsSmartExplaining(false);
+      setIsExplaining(false);
+      setIsStreaming(false);
+      setSmartExplainPhase('idle');
+      setAbortController(null);
     }
   };
 
@@ -624,18 +807,30 @@ export default function MainApp() {
       React.createElement('div', { className: 'bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden' },
         // Tab Navigation
         React.createElement('div', { className: 'border-b border-gray-200 bg-gray-50 px-6 py-4' },
-          React.createElement('div', { className: 'inline-flex h-12 items-center justify-center rounded-lg bg-white shadow-sm border border-gray-200 p-1 text-gray-600' },
+          React.createElement('div', { className: 'tab-container inline-flex h-12 items-center justify-center rounded-lg bg-white shadow-sm border border-gray-200 p-1' },
+            // Sliding background indicator
+            React.createElement('div', {
+              className: 'tab-slider',
+              style: {
+                left: `${sliderPosition.left}px`,
+                width: `${sliderPosition.width}px`,
+              }
+            }),
+            
             React.createElement('button', {
+              ref: (el) => { tabRefs.current.image = el as HTMLButtonElement; },
               onClick: () => handleTabChange('image'),
-              className: `inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium transition-all duration-200 ${activeTab === 'image' ? 'bg-primary-100 text-primary-700' : 'hover:bg-primary-50 hover:text-primary-600'}`
+              className: `tab-button inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium ${activeTab === 'image' ? 'active' : ''}`
             }, 'Image'),
             React.createElement('button', {
+              ref: (el) => { tabRefs.current.text = el as HTMLButtonElement; },
               onClick: () => handleTabChange('text'),
-              className: `inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium transition-all duration-200 ${activeTab === 'text' ? 'bg-primary-100 text-primary-700' : 'hover:bg-primary-50 hover:text-primary-600'}`
+              className: `tab-button inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium ${activeTab === 'text' ? 'active' : ''}`
             }, 'Text'),
             React.createElement('button', {
+              ref: (el) => { tabRefs.current.words = el as HTMLButtonElement; },
               onClick: () => handleTabChange('words'),
-              className: `inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium transition-all duration-200 ${activeTab === 'words' ? 'bg-primary-100 text-primary-700' : 'hover:bg-primary-50 hover:text-primary-600'}`
+              className: `tab-button inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium ${activeTab === 'words' ? 'active' : ''}`
             }, 'Words')
           )
         ),
@@ -702,29 +897,86 @@ export default function MainApp() {
               // Search Bar
               React.createElement('input', {
                 type: 'text',
-                placeholder: 'Search',
+                placeholder: 'Search Word',
                 value: searchTerm,
                 onChange: (e) => setSearchTerm(e.target.value),
                 className: 'w-full h-10 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400'
               }),
 
-              // Text Area
-              text 
-                ? React.createElement('div', {
-                    className: 'w-full min-h-[280px] px-4 py-3 border border-gray-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap',
-                    onDoubleClick: handleDoubleClick
-                  }, renderHighlightedText())
-                : React.createElement('textarea', {
-                    placeholder: 'Paste or enter your text here...',
-                    value: text,
-                    onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-                      if (explainedWords.length === 0) {
-                        setText(e.target.value);
-                      }
-                    },
-                    className: 'w-full min-h-[280px] px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none',
-                    disabled: explainedWords.length > 0
-                  }),
+              // Text Area with Smart Explain Overlay
+              React.createElement('div', { className: 'relative' },
+                text 
+                  ? React.createElement('div', {
+                      className: 'w-full min-h-[280px] px-4 py-3 border border-gray-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap',
+                      onDoubleClick: handleDoubleClick
+                    }, renderHighlightedText())
+                  : React.createElement('textarea', {
+                      placeholder: 'Paste your text here (Dont write manually)...',
+                      value: text,
+                      onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                        if (explainedWords.length === 0) {
+                          setText(e.target.value);
+                        }
+                      },
+                      className: 'w-full min-h-[280px] px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none',
+                      disabled: explainedWords.length > 0
+                    }),
+                
+                // Smart Explain Overlay
+                isSmartExplaining && React.createElement('div', { className: 'text-canvas-overlay' },
+                  React.createElement('div', { className: 'loading-content' },
+                    // Smart selecting phase
+                    smartExplainPhase === 'selecting' && React.createElement(React.Fragment, {},
+                      React.createElement('div', { className: 'loading-icon smart-select-icon' },
+                        React.createElement('svg', { 
+                          className: 'w-full h-full text-purple-500', 
+                          fill: 'none', 
+                          stroke: 'currentColor', 
+                          viewBox: '0 0 24 24' 
+                        },
+                          React.createElement('path', { 
+                            strokeLinecap: 'round', 
+                            strokeLinejoin: 'round', 
+                            strokeWidth: 2, 
+                            d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' 
+                          })
+                        )
+                      ),
+                      React.createElement('h3', { className: 'loading-title' }, 'Grabbing the most difficult words for you'),
+                      React.createElement('div', { className: 'pulse-dots' },
+                        React.createElement('span', {}, '●'),
+                        React.createElement('span', {}, '●'),
+                        React.createElement('span', {}, '●')
+                      )
+                    ),
+                    
+                    // Explaining phase
+                    smartExplainPhase === 'explaining' && React.createElement(React.Fragment, {},
+                      React.createElement('div', { className: 'loading-icon explain-icon' },
+                        React.createElement('svg', { 
+                          className: 'w-full h-full text-purple-500', 
+                          fill: 'none', 
+                          stroke: 'currentColor', 
+                          viewBox: '0 0 24 24' 
+                        },
+                          React.createElement('path', { 
+                            strokeLinecap: 'round', 
+                            strokeLinejoin: 'round', 
+                            strokeWidth: 2, 
+                            d: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' 
+                          })
+                        )
+                      ),
+                      React.createElement('h3', { className: 'loading-title' }, 'Preparing explanations'),
+                      React.createElement('div', { className: 'pulse-dots' },
+                        React.createElement('span', {}, '●'),
+                        React.createElement('span', {}, '●'),
+                        React.createElement('span', {}, '●')
+                      )
+                    )
+                  )
+                )
+              ),
 
               // Action Buttons
               React.createElement('div', { className: 'flex items-center space-x-3' },
@@ -738,11 +990,11 @@ export default function MainApp() {
                 React.createElement('div', { className: 'flex space-x-2' },
                   React.createElement('button', {
                     onClick: handleExplainWords,
-                    disabled: (selectedWords.length === 0 && manualWords.length === 0) || isExplaining,
+                    disabled: (selectedWords.length === 0 && manualWords.length === 0) || isExplaining || isSmartExplaining,
                     className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-9 px-4 text-sm transition-all duration-200 disabled:opacity-50'
                   },
-                    isExplaining && React.createElement('div', { className: 'animate-spin rounded-full h-3 w-3 border-b border-white mr-2' }),
-                    isExplaining ? 'Explaining...' : 'Explain'
+                    isExplaining && !isSmartExplaining && React.createElement('div', { className: 'animate-spin rounded-full h-3 w-3 border-b border-white mr-2' }),
+                    isExplaining && !isSmartExplaining ? 'Explaining...' : 'Explain'
                   ),
                   
                   // Stop button (only show when streaming)
@@ -754,9 +1006,9 @@ export default function MainApp() {
                 
                 React.createElement('button', {
                   onClick: handleSmartExplain,
-                  disabled: !text.trim() || isSmartSelecting || isExplaining || explainedWords.length > 0,
+                  disabled: !text.trim() || isSmartExplaining || isExplaining || explainedWords.length > 0,
                   className: 'inline-flex items-center justify-center rounded-lg font-medium bg-green-500 text-white hover:bg-green-600 h-9 px-4 text-sm transition-all duration-200 disabled:opacity-50'
-                }, isSmartSelecting || isExplaining ? 'Processing...' : 'Smart explain'),
+                }, isSmartExplaining ? 'Smart explaining...' : 'Smart explain'),
                 
                 React.createElement('button', {
                   onClick: handleClearAll,
@@ -860,11 +1112,11 @@ export default function MainApp() {
                   React.createElement('div', { className: 'flex space-x-2' },
                     React.createElement('button', {
                       onClick: handleExplainWords,
-                      disabled: isExplaining || manualWords.every(word => explainedWordNames.has(word)),
+                      disabled: isExplaining || isSmartExplaining || manualWords.every(word => explainedWordNames.has(word)),
                       className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-12 px-6 text-base disabled:opacity-50'
                     },
-                      isExplaining && React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2' }),
-                      isExplaining ? 'Explaining...' : `Explain ${manualWords.filter(word => !explainedWordNames.has(word)).length} word${manualWords.filter(word => !explainedWordNames.has(word)).length > 1 ? 's' : ''}`
+                      isExplaining && !isSmartExplaining && React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2' }),
+                      isExplaining && !isSmartExplaining ? 'Explaining...' : `Explain ${manualWords.filter(word => !explainedWordNames.has(word)).length} word${manualWords.filter(word => !explainedWordNames.has(word)).length > 1 ? 's' : ''}`
                     ),
                     
                     // Stop button for Words tab - shows right next to Explain button when needed
