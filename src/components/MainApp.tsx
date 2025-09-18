@@ -29,6 +29,10 @@ export default function MainApp() {
   const [dragActive, setDragActive] = useState(false);
   const [manualWordInput, setManualWordInput] = useState('');
   const [sortBy, setSortBy] = useState<'complexity' | 'alphabetical'>('complexity');
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [loadingMore, setLoadingMore] = useState<Set<string>>(new Set());
+  const [explanationSearchTerm, setExplanationSearchTerm] = useState('');
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -152,32 +156,63 @@ export default function MainApp() {
 
   // Explain functionality with SSE streaming
   const handleExplainWords = async () => {
-    const wordsToExplain = selectedWords.length > 0 
-      ? selectedWords 
-      : manualWords.map((word, index) => ({
+    // For manual words, only explain words that haven't been explained yet
+    let wordsToExplain;
+    
+    if (selectedWords.length > 0) {
+      wordsToExplain = selectedWords;
+    } else {
+      // Filter out already explained manual words
+      const unexplainedWords = manualWords.filter(word => 
+        !explainedWords.some(exp => exp.word === word)
+      );
+      
+      if (unexplainedWords.length === 0) {
+        showError('All words have already been explained');
+        return;
+      }
+      
+      // For manual words, create a concatenated text and proper indices
+      let currentIndex = 0;
+      
+      wordsToExplain = unexplainedWords.map((word) => {
+        const wordLocation = {
           word,
-          index: index * 10,
+          index: currentIndex,
           length: word.length,
-        }));
+        };
+        currentIndex += word.length + 1; // +1 for the space
+        return wordLocation;
+      });
+    }
 
     if (wordsToExplain.length === 0) {
       showError('No words selected for explanation');
       return;
     }
 
+    // Create abort controller for stopping the stream
+    const controller = new AbortController();
+    setAbortController(controller);
+
     setIsExplaining(true);
     setIsStreaming(true);
-    setExplanations([]);
     setIsCompleted(false);
 
     try {
+      // Determine the correct text to send to API
+      const apiText = selectedWords.length > 0 
+        ? text // Use original text for selected words
+        : wordsToExplain.map(w => w.word).join(' '); // Use concatenated words for manual words
+
       const response = await fetch('/api/v1/words-explanation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: text || manualWords.join(' '),
+          text: apiText,
           important_words_location: wordsToExplain,
         }),
+        signal: controller.signal, // Add abort signal
       });
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -204,17 +239,97 @@ export default function MainApp() {
               // Show green tick and "COMPLETED" message
               setIsStreaming(false);
               setIsCompleted(true);
-              setExplainedWords(wordsToExplain);
+              // Mark words as explained (change from purple to green background)
+              setExplainedWords(prev => [...prev, ...wordsToExplain]);
               setIsExplaining(false);
               setSelectedWords([]); // Clear selected words as they are now explained
+              setAbortController(null);
               toast.success('All explanations completed!');
               return;
             }
 
             try {
               const parsed = JSON.parse(data);
-              // Stream explanation responses and display in Explanations panel
-              setExplanations(prev => [...prev, ...parsed.words_info]);
+              console.log('Received SSE data:', parsed); // Debug log
+              
+              // Handle both word_info (singular) and words_info (plural) formats
+              if (parsed.word_info) {
+                // Single word format from backend
+                const newInfo = parsed.word_info;
+                console.log('Processing single word explanation for:', newInfo.word);
+                
+                setExplanations(prev => {
+                  // Check if we already have this word
+                  const existingIndex = prev.findIndex(exp => exp.word === newInfo.word);
+                  
+                  if (existingIndex === -1) {
+                    // New word, add it immediately
+                    console.log('Adding new explanation for:', newInfo.word);
+                    return [...prev, newInfo];
+                  } else {
+                    // Word exists, update it
+                    console.log('Updating explanation for:', newInfo.word);
+                    const updated = [...prev];
+                    updated[existingIndex] = newInfo;
+                    return updated;
+                  }
+                });
+                
+                // Mark word as explained
+                setExplainedWords(prev => {
+                  const existing = [...prev];
+                  const newWord = {
+                    word: newInfo.word,
+                    index: newInfo.location?.index || 0,
+                    length: newInfo.location?.length || newInfo.word.length,
+                  };
+                  
+                  if (!existing.some(exp => exp.word === newWord.word)) {
+                    existing.push(newWord);
+                  }
+                  return existing;
+                });
+                
+              } else if (parsed.words_info && Array.isArray(parsed.words_info)) {
+                // Multiple words format (fallback)
+                parsed.words_info.forEach(newInfo => {
+                  console.log('Processing explanation for:', newInfo.word);
+                  
+                  setExplanations(prev => {
+                    const existingIndex = prev.findIndex(exp => exp.word === newInfo.word);
+                    
+                    if (existingIndex === -1) {
+                      console.log('Adding new explanation for:', newInfo.word);
+                      return [...prev, newInfo];
+                    } else {
+                      console.log('Updating explanation for:', newInfo.word);
+                      const updated = [...prev];
+                      updated[existingIndex] = newInfo;
+                      return updated;
+                    }
+                  });
+                });
+                
+                if (parsed.words_info.length > 0) {
+                  const newlyExplainedWords = parsed.words_info.map(info => ({
+                    word: info.word,
+                    index: info.location?.index || 0,
+                    length: info.location?.length || info.word.length,
+                  }));
+                  
+                  setExplainedWords(prev => {
+                    const existing = [...prev];
+                    newlyExplainedWords.forEach(newWord => {
+                      if (!existing.some(exp => exp.word === newWord.word)) {
+                        existing.push(newWord);
+                      }
+                    });
+                    return existing;
+                  });
+                }
+              } else {
+                console.warn('Invalid data format:', parsed);
+              }
             } catch (parseError) {
               console.warn('Error parsing SSE data:', parseError);
             }
@@ -222,10 +337,32 @@ export default function MainApp() {
         }
       }
     } catch (error) {
-      console.error('Error explaining words:', error);
-      showError('Failed to generate explanations. Please try again.');
-      setIsExplaining(false);
+      if (error.name === 'AbortError') {
+        // User stopped the stream
+        setIsStreaming(false);
+        setIsCompleted(true);
+        setIsExplaining(false);
+        setAbortController(null);
+        toast.info('Explanation stopped by user');
+      } else {
+        console.error('Error explaining words:', error);
+        showError('Failed to generate explanations. Please try again.');
+        setIsExplaining(false);
+        setIsStreaming(false);
+        setAbortController(null);
+      }
+    }
+  };
+
+  // Stop streaming function
+  const handleStopStreaming = () => {
+    if (abortController) {
+      abortController.abort();
       setIsStreaming(false);
+      setIsCompleted(true);
+      setIsExplaining(false);
+      setAbortController(null);
+      toast.info('Explanation stopped');
     }
   };
 
@@ -301,8 +438,23 @@ export default function MainApp() {
     }
   };
 
-  // Get more explanations
+  // Toggle card expansion
+  const toggleCardExpansion = (word: string) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(word)) {
+        newSet.delete(word);
+      } else {
+        newSet.add(word);
+      }
+      return newSet;
+    });
+  };
+
+  // Get more explanations with loading state
   const handleGetMoreExplanations = async (explanation: any) => {
+    setLoadingMore(prev => new Set(prev).add(explanation.word));
+    
     try {
       const response = await fetch('/api/v1/get-more-explanations', {
         method: 'POST',
@@ -327,6 +479,12 @@ export default function MainApp() {
     } catch (error) {
       console.error('Error getting more explanations:', error);
       showError('Failed to get more explanations');
+    } finally {
+      setLoadingMore(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(explanation.word);
+        return newSet;
+      });
     }
   };
 
@@ -354,14 +512,16 @@ export default function MainApp() {
 
       const isSelected = selectedWords.some(w => w.word === cleanWord);
       const isExplained = explainedWords.some(w => w.word === cleanWord);
+      const isManualWord = manualWords.includes(cleanWord);
+      const isManualWordExplained = isManualWord && explanations.some(exp => exp.word === cleanWord);
       const isSearchMatch = searchTerm && cleanWord.includes(searchTerm.toLowerCase());
 
       let className = '';
-      if (isExplained) {
+      if (isExplained || isManualWordExplained) {
         // Light green background for explained words
         className = 'bg-green-200 px-1 rounded cursor-pointer hover:bg-green-300 transition-colors';
-      } else if (isSelected) {
-        // Light purple background for selected words
+      } else if (isSelected || (isManualWord && !isManualWordExplained)) {
+        // Light purple background for selected/manual words not yet explained
         className = 'bg-purple-200 px-1 rounded relative cursor-pointer hover:bg-purple-300 transition-colors';
       } else if (isSearchMatch) {
         // Yellow background for search matches
@@ -389,6 +549,31 @@ export default function MainApp() {
       return React.createElement('span', { key: index }, word);
     });
   };
+
+  // Sort explanations based on selected option
+  const sortedExplanations = React.useMemo(() => {
+    let filtered = explanations;
+    
+    // Filter by search term if searching
+    if (explanationSearchTerm) {
+      filtered = explanations.filter(exp => 
+        exp.word.toLowerCase().includes(explanationSearchTerm.toLowerCase())
+      );
+    }
+    
+    const sorted = [...filtered];
+    
+    if (sortBy === 'alphabetical') {
+      return sorted.sort((a, b) => a.word.localeCompare(b.word));
+    } else {
+      // Sort by original order (complexity/paragraph order)
+      return sorted.sort((a, b) => {
+        const aIndex = explanations.findIndex(exp => exp.word === a.word);
+        const bIndex = explanations.findIndex(exp => exp.word === b.word);
+        return aIndex - bIndex;
+      });
+    }
+  }, [explanations, sortBy, explanationSearchTerm]);
 
   return React.createElement('div', { className: 'min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-25' },
     React.createElement(Header),
@@ -513,11 +698,23 @@ export default function MainApp() {
                   className: 'inline-flex items-center justify-center rounded-lg font-medium border border-primary-300 text-primary-600 hover:bg-primary-50 h-9 px-4 text-sm transition-all duration-200 disabled:opacity-50'
                 }, isSmartSelecting ? 'Selecting...' : 'Smart select words'),
                 
-                React.createElement('button', {
-                  onClick: handleExplainWords,
-                  disabled: (selectedWords.length === 0 && manualWords.length === 0) || isExplaining,
-                  className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-9 px-4 text-sm transition-all duration-200 disabled:opacity-50'
-                }, isExplaining ? 'Explaining...' : 'Explain'),
+                // Explain button with stop functionality
+                React.createElement('div', { className: 'flex space-x-2' },
+                  React.createElement('button', {
+                    onClick: handleExplainWords,
+                    disabled: (selectedWords.length === 0 && manualWords.length === 0) || isExplaining,
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-9 px-4 text-sm transition-all duration-200 disabled:opacity-50'
+                  },
+                    isExplaining && React.createElement('div', { className: 'animate-spin rounded-full h-3 w-3 border-b border-white mr-2' }),
+                    isExplaining ? 'Explaining...' : 'Explain'
+                  ),
+                  
+                  // Stop button (only show when streaming)
+                  isStreaming && React.createElement('button', {
+                    onClick: handleStopStreaming,
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-9 px-3 text-sm transition-all duration-200'
+                  }, 'Stop')
+                ),
                 
                 React.createElement('button', {
                   onClick: handleSmartExplain,
@@ -608,84 +805,147 @@ export default function MainApp() {
                     )
               ),
 
-              manualWords.length > 0 && React.createElement('button', {
-                onClick: handleExplainWords,
-                disabled: isExplaining,
-                className: 'w-full inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-12 text-base disabled:opacity-50'
-              }, isExplaining ? 'Explaining...' : `Explain ${manualWords.length} word${manualWords.length > 1 ? 's' : ''}`)
+              manualWords.length > 0 && React.createElement('div', { className: 'flex space-x-2' },
+                React.createElement('button', {
+                  onClick: handleExplainWords,
+                  disabled: isExplaining,
+                  className: 'flex-1 inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-12 text-base disabled:opacity-50'
+                },
+                  isExplaining && React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2' }),
+                  isExplaining ? 'Explaining...' : `Explain ${manualWords.length} word${manualWords.length > 1 ? 's' : ''}`
+                ),
+                
+                // Stop button for Words tab
+                isStreaming && React.createElement('button', {
+                  onClick: handleStopStreaming,
+                  className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-12 px-4 text-base'
+                }, 'Stop')
+              )
             )
           ),
 
           // Right Side - Explanations Panel (50%)
-          React.createElement('div', { className: 'w-1/2 border-l border-gray-200 bg-gray-50 p-6' },
+          React.createElement('div', { className: 'w-1/2 border-l border-gray-200 bg-gray-50 p-6 flex flex-col' },
+            // Header with search and sort
             React.createElement('div', { className: 'mb-4' },
               React.createElement('div', { className: 'flex items-center justify-between mb-4' },
                 React.createElement('h3', { className: 'text-lg font-semibold text-gray-900' }, 'Explanations'),
-                React.createElement('div', { className: 'flex space-x-2' },
+                // Only show sort buttons if not searching by words (manual words)
+                activeTab !== 'words' && React.createElement('div', { className: 'flex space-x-2' },
                   React.createElement('button', {
                     onClick: () => setSortBy('complexity'),
                     className: `px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 ${sortBy === 'complexity' ? 'bg-primary-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
-                  }, 'Sort by Paragraph'),
+                  }, 'Sort by original order'),
                   React.createElement('button', {
                     onClick: () => setSortBy('alphabetical'),
                     className: `px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 ${sortBy === 'alphabetical' ? 'bg-primary-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
                   }, 'Sort by alphabetical order')
                 )
-              )
+              ),
+              
+              // Search box for explanations
+              React.createElement('input', {
+                type: 'text',
+                placeholder: 'Search word...',
+                value: explanationSearchTerm,
+                onChange: (e) => setExplanationSearchTerm(e.target.value),
+                className: 'w-full h-9 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition-all duration-200'
+              })
             ),
 
-            // Streaming Status
-            isStreaming && React.createElement('div', { className: 'mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3' },
-              React.createElement('div', { className: 'flex items-center space-x-2' },
-                React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500' }),
-                React.createElement('span', { className: 'text-sm text-blue-700' }, 'Receiving explanations...')
-              )
-            ),
 
-            // Completion Status
-            isCompleted && React.createElement('div', { className: 'mb-4 bg-green-50 border border-green-200 rounded-lg p-3' },
-              React.createElement('div', { className: 'flex items-center space-x-2' },
-                React.createElement('svg', { className: 'h-4 w-4 text-green-500', fill: 'currentColor', viewBox: '0 0 20 20' },
-                  React.createElement('path', { fillRule: 'evenodd', d: 'M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z', clipRule: 'evenodd' })
-                ),
-                React.createElement('span', { className: 'text-sm font-medium text-green-700' }, 'COMPLETED')
-              )
-            ),
-
-            // Explanation Cards
-            React.createElement('div', { className: 'space-y-4' },
-              explanations.length > 0 
-                ? explanations.map((explanation, index) =>
-                    React.createElement('div', { key: index, className: 'bg-white rounded-lg border border-gray-200 p-4' },
-                      React.createElement('div', { className: 'flex items-center justify-between mb-2' },
-                        React.createElement('button', {
-                          className: 'font-medium text-gray-900 hover:text-primary-600 cursor-pointer',
-                          onClick: () => setActiveTab('text') // Scroll to word in text
-                        }, explanation.word),
-                        React.createElement('button', { className: 'text-xs text-purple-600' },
-                          React.createElement('svg', { className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                            React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 9l-7 7-7-7' })
+            // Scrollable Explanation Cards Container
+            React.createElement('div', { className: 'flex-1 overflow-y-auto max-h-96 space-y-4' },
+              sortedExplanations.length > 0 
+                ? sortedExplanations.map((explanation, index) => {
+                    const isExpanded = expandedCards.has(explanation.word);
+                    const isLoadingMoreExamples = loadingMore.has(explanation.word);
+                    
+                    return React.createElement('div', { key: index, className: 'bg-white rounded-lg border border-gray-200 overflow-hidden' },
+                      // Card Header (always visible)
+                      React.createElement('div', {
+                        className: 'p-4 cursor-pointer hover:bg-gray-50 transition-colors',
+                        onClick: () => toggleCardExpansion(explanation.word)
+                      },
+                        React.createElement('div', { className: 'flex items-center justify-between' },
+                          React.createElement('button', {
+                            className: 'font-medium text-gray-900 hover:text-primary-600 cursor-pointer',
+                            onClick: (e) => {
+                              e.stopPropagation();
+                              setActiveTab('text'); // Scroll to word in text
+                            }
+                          }, explanation.word),
+                          React.createElement('button', { className: 'text-xs text-purple-600' },
+                            React.createElement('svg', { 
+                              className: `h-4 w-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`, 
+                              fill: 'none', 
+                              stroke: 'currentColor', 
+                              viewBox: '0 0 24 24' 
+                            },
+                              React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 9l-7 7-7-7' })
+                            )
                           )
                         )
                       ),
-                      React.createElement('p', { className: 'text-sm text-gray-700 mb-3' }, explanation.meaning),
-                      explanation.examples?.map((example, idx) =>
-                        React.createElement('div', { key: idx, className: 'flex items-center space-x-2 mb-2' },
-                          React.createElement('div', { className: 'w-2 h-2 bg-purple-500 rounded-full' }),
-                          React.createElement('p', { className: 'text-xs text-gray-600' }, example)
+                      
+                      // Collapsible Content
+                      isExpanded && React.createElement('div', { className: 'px-4 pb-4 border-t border-gray-100' },
+                        React.createElement('p', { className: 'text-sm text-gray-700 mb-3 mt-3' }, explanation.meaning),
+                        explanation.examples?.map((example, idx) => {
+                          // Make target word bold and purple in the sentence
+                          const highlightedExample = example.replace(
+                            new RegExp(`\\b${explanation.word}\\b`, 'gi'),
+                            `<span class="font-semibold text-purple-600">${explanation.word}</span>`
+                          );
+                          
+                          return React.createElement('div', { key: idx, className: 'flex items-center space-x-2 mb-2' },
+                            React.createElement('div', { className: 'w-2 h-2 bg-purple-500 rounded-full' }),
+                            React.createElement('p', { 
+                              className: 'text-xs text-gray-600',
+                              dangerouslySetInnerHTML: { __html: highlightedExample }
+                            })
+                          );
+                        }),
+                        // See more examples button (bottom right)
+                        React.createElement('div', { className: 'flex justify-end mt-3' },
+                          React.createElement('button', {
+                            onClick: () => handleGetMoreExplanations(explanation),
+                            disabled: isLoadingMoreExamples,
+                            className: 'inline-flex items-center text-xs bg-purple-500 text-white px-3 py-1 rounded-full hover:bg-purple-600 disabled:opacity-50 transition-all duration-200'
+                          },
+                            isLoadingMoreExamples && React.createElement('div', { className: 'animate-spin rounded-full h-3 w-3 border-b border-white mr-1' }),
+                            isLoadingMoreExamples ? 'Loading...' : 'View more examples'
+                          )
                         )
-                      ),
-                      React.createElement('button', {
-                        onClick: () => handleGetMoreExplanations(explanation),
-                        className: 'text-xs bg-purple-500 text-white px-3 py-1 rounded-full hover:bg-purple-600'
-                      }, 'See more examples')
-                    )
-                  )
+                      )
+                    );
+                  })
                 : React.createElement('div', { className: 'text-center py-12 text-gray-500' },
                     React.createElement('div', { className: 'text-4xl mb-4' }, '💡'),
                     React.createElement('h3', { className: 'text-lg font-medium text-gray-900 mb-2' }, 'No explanations yet'),
                     React.createElement('p', { className: 'text-sm text-gray-600' }, 'Select words and click "Explain" to get AI-powered explanations.')
                   )
+            ),
+
+            // Bottom status indicators
+            React.createElement('div', { className: 'mt-4 pt-4 border-t border-gray-200' },
+              // Streaming indicator
+              isStreaming && React.createElement('div', { className: 'flex items-center justify-center mb-4' },
+                React.createElement('div', { className: 'flex items-center space-x-2 text-blue-600' },
+                  React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500' }),
+                  React.createElement('span', { className: 'text-sm' }, 'Generating explanations...')
+                )
+              ),
+              
+              // Completion status
+              isCompleted && React.createElement('div', { className: 'flex items-center justify-center' },
+                React.createElement('div', { className: 'flex items-center space-x-2 text-green-600' },
+                  React.createElement('svg', { className: 'h-4 w-4', fill: 'currentColor', viewBox: '0 0 20 20' },
+                    React.createElement('path', { fillRule: 'evenodd', d: 'M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z', clipRule: 'evenodd' })
+                  ),
+                  React.createElement('span', { className: 'text-sm font-medium' }, 'COMPLETED')
+                )
+              )
             )
           )
         )
