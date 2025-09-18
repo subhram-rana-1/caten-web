@@ -11,6 +11,7 @@ const config: Config = {
       colors: {
         primary: {
           DEFAULT: '#9527F5',
+          25: '#FEFBFF',
           50: '#F3E8FF',
           100: '#E9D5FF',
           200: '#D8B4FE',
@@ -21,6 +22,9 @@ const config: Config = {
           700: '#6B1DB3',
           800: '#581C87',
           900: '#4C1D95',
+        },
+        gray: {
+          25: '#FEFEFE',
         },
       },
       fontFamily: {

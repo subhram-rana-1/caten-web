@@ -6,18 +6,18 @@ import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
+  'inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-1 shadow-sm hover:shadow-md',
   {
     variants: {
       variant: {
-        default: 'border-transparent bg-primary text-white hover:bg-primary-hover',
-        secondary: 'border-transparent bg-primary-light text-primary hover:bg-primary-light/80',
-        outline: 'border-border text-text-primary hover:bg-background-secondary',
-        success: 'border-transparent bg-semantic-success text-white',
-        error: 'border-transparent bg-semantic-error text-white',
-        warning: 'border-transparent bg-semantic-warning text-white',
-        selected: 'border-transparent bg-highlight-purple text-primary',
-        explained: 'border-transparent bg-highlight-green text-green-800',
+        default: 'border-transparent bg-primary-500 text-white hover:bg-primary-600 hover:scale-105',
+        secondary: 'border-transparent bg-purple-100 text-purple-700 hover:bg-purple-200 hover:scale-105',
+        outline: 'border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400',
+        success: 'border-transparent bg-green-500 text-white hover:bg-green-600 hover:scale-105',
+        error: 'border-transparent bg-red-500 text-white hover:bg-red-600 hover:scale-105',
+        warning: 'border-transparent bg-yellow-500 text-white hover:bg-yellow-600 hover:scale-105',
+        selected: 'border-transparent bg-purple-100 text-purple-700 hover:bg-purple-200 hover:scale-105',
+        explained: 'border-transparent bg-green-100 text-green-800 hover:bg-green-200 hover:scale-105',
       },
     },
     defaultVariants: {
@@ -40,7 +40,7 @@ function Badge({ className, variant, removable, onRemove, children, ...props }: 
       {removable && (
         <button
           onClick={onRemove}
-          className="ml-1 -mr-1 h-4 w-4 rounded-full hover:bg-black/10 focus:outline-none focus:ring-1 focus:ring-primary"
+          className="ml-2 -mr-1 h-5 w-5 rounded-full hover:bg-black/10 focus:outline-none focus:ring-1 focus:ring-purple-400 transition-all duration-150 hover:scale-110"
           type="button"
         >
           <X className="h-3 w-3" />

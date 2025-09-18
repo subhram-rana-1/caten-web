@@ -12,8 +12,8 @@ const TextArea = React.forwardRef<HTMLTextAreaElement, TextAreaProps>(
     return (
       <textarea
         className={cn(
-          'flex min-h-[120px] w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none transition-all duration-300',
-          error && 'border-semantic-error focus-visible:ring-semantic-error',
+          'flex min-h-[140px] w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-1 focus-visible:border-purple-400 disabled:cursor-not-allowed disabled:opacity-50 resize-none transition-all duration-300 shadow-sm hover:shadow-md hover:border-gray-400 leading-relaxed',
+          error && 'border-red-400 focus-visible:ring-red-400 hover:border-red-500',
           className
         )}
         ref={ref}
