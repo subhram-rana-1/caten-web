@@ -109,10 +109,10 @@ const ImageTab: React.FC<ImageTabProps> = ({
   return (
     <div className="space-y-6">
       <div
-        className={`upload-area relative border-2 border-dashed rounded-xl p-8 transition-all duration-300 cursor-pointer ${
+        className={`relative border-2 border-dashed rounded-xl p-8 transition-all duration-300 cursor-pointer ${
           dragActive 
-            ? 'border-primary-500 bg-primary-50 drag-active shadow-lg' 
-            : 'border-gray-300 hover:border-primary-400 hover:bg-primary-25'
+            ? 'border-primary-500 bg-primary-50' 
+            : 'border-primary-200 hover:border-primary-300 bg-primary-25'
         } ${isLoading ? 'pointer-events-none opacity-50' : ''}`}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
@@ -160,12 +160,12 @@ const ImageTab: React.FC<ImageTabProps> = ({
           </motion.div>
         ) : (
           <div className="flex flex-col items-center justify-center space-y-6">
-            <div className="p-6 bg-gradient-to-br from-primary-50 to-primary-100 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110">
-              <Upload className="h-10 w-10 text-primary-500" />
+            <div className="p-4 bg-primary-100 rounded-full">
+              <Upload className="h-8 w-8 text-primary-500" />
             </div>
             
             <div className="text-center space-y-3">
-              <h3 className="text-xl font-semibold text-gray-900 leading-tight">
+              <h3 className="text-lg font-medium text-gray-900 leading-tight">
                 Drop, Upload or Paste Image containing texts
               </h3>
               <p className="text-sm text-gray-600 leading-relaxed max-w-md mx-auto">
@@ -173,14 +173,12 @@ const ImageTab: React.FC<ImageTabProps> = ({
               </p>
             </div>
 
-            <Button 
+            <button 
               onClick={handleBrowseClick}
-              className="mt-6 px-8 shadow-lg hover:shadow-xl"
-              size="lg"
-              leftIcon={<ImageIcon className="h-5 w-5" />}
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium bg-primary-100 text-primary-700 hover:bg-primary-200 h-10 px-6 py-2 mt-4 transition-all duration-200"
             >
               Browse Files
-            </Button>
+            </button>
           </div>
         )}
       </div>

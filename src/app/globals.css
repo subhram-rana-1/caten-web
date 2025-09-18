@@ -81,34 +81,30 @@
   /* Button enhancement base class */
   .btn-enhanced {
     @apply transition-all duration-200 ease-in-out;
-    transform: translateZ(0);
-    will-change: transform, box-shadow;
   }
 
   .btn-enhanced:hover {
-    transform: translateY(-1px) scale(1.02);
-    box-shadow: 0 8px 25px -8px rgba(149, 39, 245, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px -4px rgba(149, 39, 245, 0.2);
   }
 
   .btn-enhanced:active {
-    transform: translateY(0) scale(0.98);
+    transform: translateY(0);
     transition-duration: 0.1s;
   }
 
   /* Upload area enhancement */
   .upload-area {
     @apply transition-all duration-300 ease-in-out;
-    transform: translateZ(0);
   }
 
   .upload-area:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 40px -12px rgba(149, 39, 245, 0.15);
+    box-shadow: 0 8px 25px -8px rgba(149, 39, 245, 0.12);
   }
 
   .upload-area.drag-active {
-    transform: translateY(-2px) scale(1.01);
-    box-shadow: 0 16px 50px -12px rgba(149, 39, 245, 0.25);
+    box-shadow: 0 12px 35px -8px rgba(149, 39, 245, 0.2);
+    border-color: #9527F5;
   }
 
   /* Enhanced animations */
@@ -196,15 +192,13 @@
     animation: glow 2s ease-in-out infinite;
   }
 
-  /* Enhanced interactive states */
+  /* Subtle interactive states */
   .interactive-card {
-    @apply transition-all duration-300 ease-in-out;
-    transform: translateZ(0);
+    @apply transition-shadow duration-200 ease-in-out;
   }
 
   .interactive-card:hover {
-    transform: translateY(-2px) scale(1.01);
-    box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 30px -8px rgba(0, 0, 0, 0.08);
   }
 
   /* Tab enhancement */
