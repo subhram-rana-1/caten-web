@@ -1094,9 +1094,9 @@ export default function MainApp() {
     React.createElement('main', { className: 'max-w-7xl mx-auto px-4 py-8' },
       // Main Content Area - 50/50 Split with gap
       React.createElement('div', { className: 'flex gap-6' },
-        // Left Side - User Input Card (50% for Text/Words, 100% for Image)
-        React.createElement('div', { className: `${displayedTab === 'image' ? 'w-full' : 'w-1/2'}` },
-          React.createElement('div', { className: 'bg-white rounded-2xl shadow-lg shadow-purple-100 p-6 h-full' },
+        // Left Side - User Input Card (50% for Text/Words, centered for Image)
+        React.createElement('div', { className: `${displayedTab === 'image' ? 'w-full flex justify-center' : 'w-1/2'}` },
+          React.createElement('div', { className: `bg-white rounded-2xl shadow-lg shadow-purple-100 p-6 h-full ${displayedTab === 'image' ? 'max-w-2xl w-full' : ''}` },
             // Tab Navigation
             React.createElement('div', { className: 'mb-6' },
               React.createElement('div', { className: 'relative inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 p-0 w-full' },
@@ -1126,9 +1126,9 @@ export default function MainApp() {
               )
             ),
             // Image Tab Content
-            displayedTab === 'image' && React.createElement('div', { className: `space-y-6 tab-content ${activeTab === 'image' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
+            displayedTab === 'image' && React.createElement('div', { className: `h-[384px] flex flex-col tab-content ${activeTab === 'image' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
               React.createElement('div', {
-                className: `relative border-2 border-dashed rounded-xl p-12 transition-all duration-300 cursor-pointer transform hover:scale-[1.02] max-w-4xl mx-auto ${dragActive ? 'border-primary-500 bg-primary-50' : 'border-primary-200 hover:border-primary-300 bg-primary-25'} ${isLoading ? 'pointer-events-none opacity-50' : ''}`,
+                className: `relative border border-dashed rounded-xl p-12 transition-all duration-300 cursor-pointer transform hover:scale-[1.02] max-w-4xl mx-auto flex-1 flex items-center justify-center ${dragActive ? 'border-primary-500 bg-primary-50' : 'border-primary-200 hover:border-primary-300 bg-primary-25'} ${isLoading ? 'pointer-events-none opacity-50' : ''}`,
                 onDragEnter: (e) => { e.preventDefault(); setDragActive(true); },
                 onDragLeave: (e) => { e.preventDefault(); setDragActive(false); },
                 onDragOver: (e) => { e.preventDefault(); setDragActive(true); },
@@ -1156,7 +1156,7 @@ export default function MainApp() {
                     isLoading 
                       ? React.createElement('div', { className: 'animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500' })
                       : React.createElement('svg', { className: 'h-8 w-8 text-primary-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12' })
+                          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4l0 8m-4-4l4-4 4 4M6 16h12M6 16l0 2M18 16l0 2M6 18h12' })
                         )
                   ),
                   
@@ -1173,28 +1173,28 @@ export default function MainApp() {
                   }, isLoading ? 'Processing...' : 'Browse')
                 )
               ),
-              React.createElement('div', { className: 'text-center' },
+              React.createElement('div', { className: 'text-center mt-4 mb-4' },
                 React.createElement('p', { className: 'text-xs text-gray-500' }, 'Maximum file size: 5MB')
               )
             ),
 
             // Text Tab Content
-            displayedTab === 'text' && React.createElement('div', { className: `space-y-4 tab-content ${activeTab === 'text' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
+            displayedTab === 'text' && React.createElement('div', { className: `h-[384px] flex flex-col tab-content ${activeTab === 'text' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
               // Search Bar - only show when there is text
               text.trim() && React.createElement('input', {
                 type: 'text',
-                placeholder: 'Type word here to saerch ...',
+                placeholder: 'Search word ...',
                 value: searchTerm,
                 onChange: (e) => setSearchTerm(e.target.value),
-                className: 'w-full h-10 px-4 py-2 border border-purple-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200'
+                className: 'w-full h-10 px-4 py-2 border border-purple-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 mb-4'
               }),
 
               // Text Area with Smart Explain Overlay
-              React.createElement('div', { className: 'relative' },
+              React.createElement('div', { className: 'relative flex flex-col flex-1' },
                 text 
                   ? React.createElement('div', {
                       ref: textCanvasRef,
-                      className: `w-full h-[280px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap overflow-y-auto hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : ''}`,
+                      className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap overflow-y-auto hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : ''}`,
                       onDoubleClick: handleDoubleClick
                     }, renderHighlightedText())
                   : React.createElement('textarea', {
@@ -1208,7 +1208,7 @@ export default function MainApp() {
                           }
                         }
                       },
-                      className: `w-full h-[280px] px-4 py-3 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] resize-none overflow-y-auto transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : ''}`,
+                      className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] resize-none overflow-y-auto transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : ''}`,
                       disabled: explainedWords.length > 0
                     }),
                 
@@ -1314,7 +1314,7 @@ export default function MainApp() {
               ),
 
               // Action Buttons - Three Groups Layout
-              React.createElement('div', { className: 'flex justify-between items-start' },
+              React.createElement('div', { className: 'flex justify-between items-start mt-auto pt-6' },
                 // Left Button Group - Clear Buttons
                 React.createElement('div', { className: 'flex flex-col space-y-3' },
                   text.trim() && React.createElement('button', {
@@ -1473,7 +1473,7 @@ export default function MainApp() {
             ),
 
             // Words Tab Content
-            displayedTab === 'words' && React.createElement('div', { className: `h-[280px] flex flex-col tab-content ${activeTab === 'words' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
+            displayedTab === 'words' && React.createElement('div', { className: `h-[384px] flex flex-col tab-content ${activeTab === 'words' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
               // Input section
               React.createElement('div', { className: 'flex space-x-2 mb-4' },
                 React.createElement('input', {
@@ -1602,22 +1602,49 @@ export default function MainApp() {
         // Right Side - Explanations Card (50%) - Only show for Text and Words tabs
         displayedTab !== 'image' && React.createElement('div', { className: 'w-1/2' },
           React.createElement('div', { className: 'bg-white rounded-2xl shadow-lg shadow-purple-100 p-6 h-full flex flex-col' },
-            // Explanations Header
+            // Header - different for each tab
             React.createElement('div', { className: 'bg-purple-500 rounded-lg h-10 flex items-center justify-center mb-4' },
-              React.createElement('h3', { className: 'text-lg font-normal text-white' }, 'Explanations')
+              React.createElement('h3', { className: 'text-lg font-normal text-white' }, 
+                displayedTab === 'image' ? 'Image Preview' : 'Explanations'
+              )
             ),
 
-            
-            // Search box for explanations (only show when there are explanations)
-            explanations.length > 0 && React.createElement('div', { className: 'mb-4' },
-              React.createElement('input', {
-                type: 'text',
-                placeholder: 'Type word here to saerch ...',
-                value: explanationSearchTerm,
-                onChange: (e) => setExplanationSearchTerm(e.target.value),
-                className: 'w-full h-9 px-3 py-2 border border-purple-300 rounded-full text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200'
-              })
-            ),
+            // Content based on tab
+            displayedTab === 'image' ? 
+              // Image tab content - empty placeholder
+              React.createElement('div', { className: 'flex-1 flex items-center justify-center' },
+                React.createElement('div', { className: 'text-center py-12 text-gray-500' },
+                  React.createElement('div', { className: 'flex justify-center mb-4' },
+                    React.createElement('svg', { 
+                      className: 'h-12 w-12 text-purple-500', 
+                      fill: 'none', 
+                      stroke: 'currentColor', 
+                      viewBox: '0 0 24 24' 
+                    },
+                      React.createElement('path', { 
+                        strokeLinecap: 'round', 
+                        strokeLinejoin: 'round', 
+                        strokeWidth: 1.5, 
+                        d: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' 
+                      })
+                    )
+                  ),
+                  React.createElement('h3', { className: 'text-lg font-medium text-gray-900 mb-2' }, 'Image Preview'),
+                  React.createElement('p', { className: 'text-sm text-gray-600' }, 'Upload an image to see it here')
+                )
+              ) :
+              // Text/Words tab content - explanations
+              React.createElement(React.Fragment, {},
+                // Search box for explanations (only show when there are explanations)
+                explanations.length > 0 && React.createElement('div', { className: 'mb-4' },
+                  React.createElement('input', {
+                    type: 'text',
+                    placeholder: 'Search word ...',
+                    value: explanationSearchTerm,
+                    onChange: (e) => setExplanationSearchTerm(e.target.value),
+                    className: 'w-full h-9 px-3 py-2 border border-purple-300 rounded-full text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200'
+                  })
+                ),
 
 
             
@@ -1765,6 +1792,7 @@ export default function MainApp() {
                   React.createElement('span', { className: 'text-sm font-medium' }, 'COMPLETED')
                 )
               )
+            )
             )
           )
         )
