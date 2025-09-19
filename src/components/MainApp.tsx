@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import Header from '@/components/Header';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ErrorBanner from '@/components/ErrorBanner';
+import { CONFIG } from '@/lib/config';
 
 type TabType = 'image' | 'text' | 'words';
 
@@ -69,6 +70,9 @@ export default function MainApp() {
   const [loadingMore, setLoadingMore] = useState<Set<string>>(new Set());
   const [explanationSearchTerm, setExplanationSearchTerm] = useState('');
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [wordLimitAlert, setWordLimitAlert] = useState<string | null>(null);
+  const [showErrorBanner, setShowErrorBanner] = useState(false);
+  const [showWordLimitAlert, setShowWordLimitAlert] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textCanvasRef = useRef<HTMLDivElement>(null);
@@ -122,6 +126,58 @@ export default function MainApp() {
   const showError = (message: string) => {
     setError(message);
     toast.error(message);
+    
+    // Trigger animation after a tiny delay to ensure smooth slide-in
+    setTimeout(() => {
+      setShowErrorBanner(true);
+    }, 10);
+    
+    // Auto-hide banner after 3 seconds
+    setTimeout(() => {
+      setShowErrorBanner(false);
+      // Clear error message after animation completes
+      setTimeout(() => setError(null), 300);
+    }, 3000);
+  };
+
+
+  // Handle adding words with validation
+  const handleAddWord = (word: string) => {
+    const cleanWord = word.trim().toLowerCase();
+    if (!cleanWord) return;
+
+    // Check if word already exists
+    if (manualWords.includes(cleanWord)) {
+      return;
+    }
+
+    // Check total word count (explained + to be explained)
+    // Only count words that are actually explained (in explanations array)
+    const totalWords = explanations.length;
+    if (totalWords >= CONFIG.MAX_TOTAL_WORDS) {
+      showError("Total word count can't be more than 20");
+      return;
+    }
+
+    // Check word limit - only check words that are NOT explained yet (purple color)
+    const unexplainedWords = manualWords.filter(word => !explainedWordNames.has(word));
+    if (unexplainedWords.length >= CONFIG.MAX_WORDS_AT_ONCE) {
+      setWordLimitAlert(`More than ${CONFIG.MAX_WORDS_AT_ONCE} words can't be added at once`);
+      
+      // Trigger animation after a tiny delay to ensure smooth slide-in
+      setTimeout(() => {
+        setShowWordLimitAlert(true);
+      }, 10);
+      
+      // Auto-hide alert after 3 seconds
+      setTimeout(() => {
+        setShowWordLimitAlert(false);
+        setTimeout(() => setWordLimitAlert(null), 300);
+      }, 3000);
+      return;
+    }
+
+    setManualWords(prev => [...prev, cleanWord]);
   };
 
   // Update slider position based on active tab
@@ -730,6 +786,14 @@ export default function MainApp() {
         if (isSelected) {
           setSelectedWords(prev => prev.filter(w => w.word !== word));
         } else {
+          // Check total word count before adding
+          // Only count words that are actually explained (in explanations array)
+          const totalWords = explanations.length;
+          if (totalWords >= CONFIG.MAX_TOTAL_WORDS) {
+            showError("Total word count can't be more than 20");
+            return;
+          }
+          
           setSelectedWords(prev => [...prev, wordLocation]);
         }
       }
@@ -963,11 +1027,69 @@ export default function MainApp() {
   return React.createElement('div', { className: 'min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-25' },
     React.createElement(Header),
     
-    error && React.createElement(ErrorBanner, {
-      message: error,
-      onClose: () => setError(null),
-      visible: !!error
-    }),
+    (error || showErrorBanner) && React.createElement('div', { 
+      className: `fixed top-28 right-4 z-50 transition-all duration-300 ease-in-out transform ${
+        showErrorBanner 
+          ? 'translate-x-0 opacity-100' 
+          : 'translate-x-full opacity-0'
+      }` 
+    },
+      React.createElement('div', { 
+        className: 'bg-red-500 text-white px-4 py-3 rounded-lg shadow-lg max-w-sm' 
+      },
+        React.createElement('div', { className: 'flex items-center justify-between' },
+          React.createElement('div', { className: 'flex items-center' },
+            React.createElement('svg', { className: 'w-5 h-5 mr-2', fill: 'currentColor', viewBox: '0 0 20 20' },
+              React.createElement('path', { fillRule: 'evenodd', d: 'M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z', clipRule: 'evenodd' })
+            ),
+            React.createElement('span', { className: 'text-sm font-medium' }, error)
+          ),
+          React.createElement('button', {
+            onClick: () => {
+              setShowErrorBanner(false);
+              setTimeout(() => setError(null), 300);
+            },
+            className: 'ml-4 text-white hover:text-gray-200 transition-colors'
+          },
+            React.createElement('svg', { className: 'w-4 h-4', fill: 'currentColor', viewBox: '0 0 20 20' },
+              React.createElement('path', { fillRule: 'evenodd', d: 'M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z', clipRule: 'evenodd' })
+            )
+          )
+        )
+      )
+    ),
+    
+    (wordLimitAlert || showWordLimitAlert) && React.createElement('div', { 
+      className: `fixed top-40 right-4 z-50 transition-all duration-300 ease-in-out transform ${
+        showWordLimitAlert 
+          ? 'translate-x-0 opacity-100' 
+          : 'translate-x-full opacity-0'
+      }` 
+    },
+      React.createElement('div', { 
+        className: 'bg-red-500 text-white px-4 py-3 rounded-lg shadow-lg max-w-sm' 
+      },
+        React.createElement('div', { className: 'flex items-center justify-between' },
+          React.createElement('div', { className: 'flex items-center' },
+            React.createElement('svg', { className: 'w-5 h-5 mr-2', fill: 'currentColor', viewBox: '0 0 20 20' },
+              React.createElement('path', { fillRule: 'evenodd', d: 'M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z', clipRule: 'evenodd' })
+            ),
+            React.createElement('span', { className: 'text-sm font-medium' }, wordLimitAlert)
+          ),
+          React.createElement('button', {
+            onClick: () => {
+              setShowWordLimitAlert(false);
+              setTimeout(() => setWordLimitAlert(null), 300);
+            },
+            className: 'ml-4 text-white hover:text-gray-200 transition-colors'
+          },
+            React.createElement('svg', { className: 'w-4 h-4', fill: 'currentColor', viewBox: '0 0 20 20' },
+              React.createElement('path', { fillRule: 'evenodd', d: 'M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z', clipRule: 'evenodd' })
+            )
+          )
+        )
+      )
+    ),
     
     React.createElement('main', { className: 'max-w-7xl mx-auto px-4 py-8' },
       // Main Content Area - 50/50 Split with gap
@@ -977,21 +1099,29 @@ export default function MainApp() {
           React.createElement('div', { className: 'bg-white rounded-2xl shadow-lg shadow-purple-100 p-6 h-full' },
             // Tab Navigation
             React.createElement('div', { className: 'mb-6' },
-              React.createElement('div', { className: 'inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 p-1 w-full' },
+              React.createElement('div', { className: 'relative inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 p-0 w-full' },
+                // Sliding indicator
+                React.createElement('div', {
+                  className: 'absolute top-0 left-0 h-full bg-purple-500 rounded-lg transition-all duration-300 ease-in-out',
+                  style: {
+                    width: `${100 / 3}%`,
+                    transform: `translateX(${activeTab === 'image' ? '0%' : activeTab === 'text' ? '100%' : '200%'})`
+                  }
+                }),
                 React.createElement('button', {
                   ref: (el) => { tabRefs.current.image = el as HTMLButtonElement; },
                   onClick: () => handleTabChange('image'),
-                  className: `flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-lg font-normal transition-all duration-200 ${activeTab === 'image' ? 'bg-purple-500 text-white shadow-sm' : 'text-gray-600 hover:text-purple-700'}`
+                  className: `relative z-10 flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 text-lg font-normal transition-all duration-200 ${activeTab === 'image' ? 'text-white' : 'text-gray-600 hover:text-purple-700 hover:bg-purple-200'}`
                 }, 'Image'),
                 React.createElement('button', {
                   ref: (el) => { tabRefs.current.text = el as HTMLButtonElement; },
                   onClick: () => handleTabChange('text'),
-                  className: `flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-lg font-normal transition-all duration-200 ${activeTab === 'text' ? 'bg-purple-500 text-white shadow-sm' : 'text-gray-600 hover:text-purple-700'}`
+                  className: `relative z-10 flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 text-lg font-normal transition-all duration-200 ${activeTab === 'text' ? 'text-white' : 'text-gray-600 hover:text-purple-700 hover:bg-purple-200'}`
                 }, 'Text'),
                 React.createElement('button', {
                   ref: (el) => { tabRefs.current.words = el as HTMLButtonElement; },
                   onClick: () => handleTabChange('words'),
-                  className: `flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-lg font-normal transition-all duration-200 ${activeTab === 'words' ? 'bg-purple-500 text-white shadow-sm' : 'text-gray-600 hover:text-purple-700'}`
+                  className: `relative z-10 flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 text-lg font-normal transition-all duration-200 ${activeTab === 'words' ? 'text-white' : 'text-gray-600 hover:text-purple-700 hover:bg-purple-200'}`
                 }, 'Words')
               )
             ),
@@ -1343,8 +1473,9 @@ export default function MainApp() {
             ),
 
             // Words Tab Content
-            displayedTab === 'words' && React.createElement('div', { className: `space-y-6 tab-content ${activeTab === 'words' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
-              React.createElement('div', { className: 'flex space-x-2' },
+            displayedTab === 'words' && React.createElement('div', { className: `h-[280px] flex flex-col tab-content ${activeTab === 'words' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
+              // Input section
+              React.createElement('div', { className: 'flex space-x-2 mb-4' },
                 React.createElement('input', {
                   type: 'text',
                   placeholder: 'Type a word and press Enter...',
@@ -1352,31 +1483,24 @@ export default function MainApp() {
                   onChange: (e) => setManualWordInput(e.target.value),
                   onKeyPress: (e) => {
                     if (e.key === 'Enter' && manualWordInput.trim()) {
-                      const word = manualWordInput.trim().toLowerCase();
-                      if (!manualWords.includes(word)) {
-                        setManualWords(prev => [...prev, word]);
-                        setManualWordInput('');
-                      }
+                      handleAddWord(manualWordInput);
+                      setManualWordInput('');
                     }
                   },
                   className: 'flex-1 h-10 px-4 py-2 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200'
                 }),
                 React.createElement('button', {
                   onClick: () => {
-                    const word = manualWordInput.trim().toLowerCase();
-                    if (word && !manualWords.includes(word)) {
-                      setManualWords(prev => [...prev, word]);
-                      setManualWordInput('');
-                    }
+                    handleAddWord(manualWordInput);
+                    setManualWordInput('');
                   },
                   disabled: !manualWordInput.trim() || manualWords.includes(manualWordInput.trim().toLowerCase()),
                   className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
                 }, 'Add')
               ),
-
-              React.createElement('div', { className: 'space-y-3' },
-                React.createElement('h3', { className: 'text-sm font-medium text-gray-900' }, `Selected Words (${manualWords.length})`),
-                
+              
+              // Word display area with scroll - takes up remaining space
+              React.createElement('div', { className: 'flex-1 overflow-y-auto mb-4' },
                 manualWords.length > 0 
                   ? React.createElement('div', { className: 'flex flex-wrap gap-2' },
                       manualWords.map(word => {
@@ -1402,47 +1526,73 @@ export default function MainApp() {
                       })
                     )
                   : React.createElement('div', { className: 'text-center py-8 text-gray-500' },
-                      React.createElement('div', { className: 'text-4xl mb-2' }, '📝'),
+                      React.createElement('div', { className: 'flex justify-center mb-4' },
+                        React.createElement('svg', { 
+                          className: 'h-12 w-12 text-purple-500', 
+                          fill: 'none', 
+                          stroke: 'currentColor', 
+                          viewBox: '0 0 24 24' 
+                        },
+                          React.createElement('path', { 
+                            strokeLinecap: 'round', 
+                            strokeLinejoin: 'round', 
+                            strokeWidth: 1.5, 
+                            d: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' 
+                          })
+                        )
+                      ),
                       React.createElement('p', {}, 'No words added yet')
                     )
               ),
 
-              manualWords.length > 0 && React.createElement('div', { className: 'space-y-3' },
-                // Button row with proper layout: Explain (left) -> Stop (when needed) -> Clear All (right)
+              // Action buttons at the bottom
+              manualWords.length > 0 && React.createElement('div', { className: 'mt-auto' },
+                // Button row with proper layout: Clear All (left) -> Explain (right)
                 React.createElement('div', { className: 'flex justify-between items-center' },
-                  // Left side: Explain button and Stop button (when needed)
+                  // Left side: Clear all explanations button
+                  React.createElement('button', {
+                    onClick: () => {
+                      setDialogType('clearExplanations');
+                      setShowConfirmDialog(true);
+                      setConfirmAction(() => () => {
+                        setManualWords([]);
+                        setExplainedWordNames(new Set());
+                        setExplanations([]);
+                        explanationsRef.current = [];
+                        setExplainedWords([]);
+                        setIsCompleted(false);
+                        setIsStreaming(false);
+                        setIsExplaining(false);
+                        toast.success('All words and explanations cleared!');
+                      });
+                    },
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium border border-red-300 text-red-600 hover:bg-red-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
+                  }, 
+                    React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16' })
+                    ),
+                    'Clear all explanations'
+                  ),
+                  
+                  // Right side: Explain button and Stop button (when needed)
                   React.createElement('div', { className: 'flex space-x-2' },
                     React.createElement('button', {
                       onClick: handleExplainWords,
                       disabled: isExplaining || isSmartExplaining || manualWords.every(word => explainedWordNames.has(word)),
-                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
+                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
                     },
-                      isExplaining && !isSmartExplaining && React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2' }),
+                      React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                        React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
+                      ),
                       isExplaining && !isSmartExplaining ? 'Explaining...' : `Explain ${manualWords.filter(word => !explainedWordNames.has(word)).length} word${manualWords.filter(word => !explainedWordNames.has(word)).length > 1 ? 's' : ''}`
                     ),
                     
                     // Stop button for Words tab - shows right next to Explain button when needed
                     isStreaming && React.createElement('button', {
                       onClick: handleStopStreaming,
-                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02]'
+                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                     }, 'Stop')
-                  ),
-                  
-                  // Right side: Clear all button
-                  React.createElement('button', {
-                    onClick: () => {
-                      setManualWords([]);
-                      setExplainedWordNames(new Set());
-                      setExplanations([]);
-                      explanationsRef.current = [];
-                      setExplainedWords([]);
-                      setIsCompleted(false);
-                      setIsStreaming(false);
-                      setIsExplaining(false);
-                      toast.success('All words and explanations cleared!');
-                    },
-                    className: 'inline-flex items-center justify-center rounded-lg font-medium bg-gray-500 text-white hover:bg-gray-600 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02]'
-                  }, 'Clear All')
+                  )
                 )
               )
             )
@@ -1453,7 +1603,7 @@ export default function MainApp() {
         displayedTab !== 'image' && React.createElement('div', { className: 'w-1/2' },
           React.createElement('div', { className: 'bg-white rounded-2xl shadow-lg shadow-purple-100 p-6 h-full flex flex-col' },
             // Explanations Header
-            React.createElement('div', { className: 'bg-purple-500 rounded-lg p-2 flex items-center justify-center mb-4' },
+            React.createElement('div', { className: 'bg-purple-500 rounded-lg h-10 flex items-center justify-center mb-4' },
               React.createElement('h3', { className: 'text-lg font-normal text-white' }, 'Explanations')
             ),
 
@@ -1559,11 +1709,15 @@ export default function MainApp() {
                     React.createElement('div', { className: 'flex justify-center mb-4' },
                       React.createElement('svg', { 
                         className: 'h-12 w-12 text-purple-500', 
-                        fill: 'currentColor', 
+                        fill: 'none', 
+                        stroke: 'currentColor', 
                         viewBox: '0 0 24 24' 
                       },
                         React.createElement('path', { 
-                          d: 'M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7zM9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1z' 
+                          strokeLinecap: 'round', 
+                          strokeLinejoin: 'round', 
+                          strokeWidth: 1.5, 
+                          d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' 
                         })
                       )
                     ),
@@ -1621,13 +1775,13 @@ export default function MainApp() {
       open: showConfirmDialog,
       onOpenChange: setShowConfirmDialog,
       title: dialogType === 'clearText' ? 'Clear Text?' : 
-             dialogType === 'clearExplanations' ? 'Clear Explanations?' : 
+             dialogType === 'clearExplanations' ? 'Clear all explanations?' : 
              'Clear existing data?',
       description: dialogType === 'clearText' ? 'All text and explanations will be cleared. Are you sure?' :
-                  dialogType === 'clearExplanations' ? 'This will delete all explanations. Are you sure?' :
+                  dialogType === 'clearExplanations' ? 'All words and explanations will be cleared. Are you sure?' :
                   'All existing data will be erased. Do you still want to start fresh?',
       confirmText: dialogType === 'clearText' ? 'Yes, clear text' :
-                  dialogType === 'clearExplanations' ? 'Yes, clear explanations' :
+                  dialogType === 'clearExplanations' ? 'Yes, clear all explanations' :
                   'Yes, clear all',
       cancelText: 'Cancel',
       variant: 'destructive',
