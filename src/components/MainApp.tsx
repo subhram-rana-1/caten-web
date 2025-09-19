@@ -57,9 +57,11 @@ export default function MainApp() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [smartExplainPhase, setSmartExplainPhase] = useState<'idle' | 'selecting' | 'explaining'>('idle');
   const [isCompleted, setIsCompleted] = useState(false);
+  const [isPreparingExplanations, setIsPreparingExplanations] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
+  const [dialogType, setDialogType] = useState<'clearAll' | 'clearText' | 'clearExplanations'>('clearAll');
   const [dragActive, setDragActive] = useState(false);
   const [manualWordInput, setManualWordInput] = useState('');
   const [sortBy, setSortBy] = useState<'complexity' | 'alphabetical'>('complexity');
@@ -69,6 +71,8 @@ export default function MainApp() {
   const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textCanvasRef = useRef<HTMLDivElement>(null);
+  const explanationSectionRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<{ [key in TabType]: HTMLButtonElement | null }>({
     image: null,
     text: null,
@@ -84,6 +88,21 @@ export default function MainApp() {
   }, []);
 
   const hasData = () => text || selectedWords.length > 0 || explainedWords.length > 0 || manualWords.length > 0 || explanations.length > 0;
+
+  // Helper function to count words in text
+  const countWords = (text: string) => {
+    return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+  };
+
+  // Helper function to validate word limit
+  const validateWordLimit = (text: string) => {
+    const wordCount = countWords(text);
+    if (wordCount > 500) {
+      showError(`You can't process more than 500 words. Current word count: ${wordCount}`);
+      return false;
+    }
+    return true;
+  };
 
   const clearAllData = () => {
     setText('');
@@ -182,6 +201,11 @@ export default function MainApp() {
       const data = await response.json();
       
       if (data.text) {
+        // Validate word limit before setting text
+        if (!validateWordLimit(data.text)) {
+          return; // Don't set text if it exceeds limit
+        }
+        
         // On success: Switch to Text tab with extracted text auto-filled
         setText(data.text);
         
@@ -288,6 +312,7 @@ export default function MainApp() {
     setIsExplaining(true);
     setIsStreaming(true);
     setIsCompleted(false);
+    setIsPreparingExplanations(true);
 
     try {
       // Determine the correct text to send to API
@@ -335,6 +360,7 @@ export default function MainApp() {
               // Show green tick and "COMPLETED" message
               setIsStreaming(false);
               setIsCompleted(true);
+              setIsPreparingExplanations(false);
               // Mark words as explained (change from purple to green background)
               setExplainedWords(prev => [...prev, ...wordsToExplain]);
               setIsExplaining(false);
@@ -347,6 +373,9 @@ export default function MainApp() {
             try {
               const parsed = JSON.parse(data);
               console.log('Received SSE data:', parsed); // Debug log
+              
+              // Clear preparing state when we start receiving data
+              setIsPreparingExplanations(false);
               
               // Handle both word_info (singular) and words_info (plural) formats
               if (parsed.word_info) {
@@ -432,6 +461,7 @@ export default function MainApp() {
         setIsStreaming(false);
         setIsCompleted(true);
         setIsExplaining(false);
+        setIsPreparingExplanations(false);
         setAbortController(null);
         toast.info('Explanation stopped by user');
       } else {
@@ -439,6 +469,7 @@ export default function MainApp() {
         showError('Failed to generate explanations. Please try again.');
         setIsExplaining(false);
         setIsStreaming(false);
+        setIsPreparingExplanations(false);
         setAbortController(null);
       }
     }
@@ -623,11 +654,59 @@ export default function MainApp() {
     }
   };
 
+  // Unselect all words functionality
+  const handleUnselectAllWords = () => {
+    setSelectedWords([]);
+    toast.success('All words unselected');
+  };
+
   // Clear All with confirmation dialog
   const handleClearAll = () => {
     if (hasData()) {
+      setDialogType('clearAll');
       setShowConfirmDialog(true);
       setConfirmAction(() => clearAllData);
+    }
+  };
+
+  // Clear Text with confirmation dialog
+  const handleClearText = () => {
+    if (text.trim()) {
+      setDialogType('clearText');
+      setShowConfirmDialog(true);
+      setConfirmAction(() => () => {
+        setText('');
+        setSelectedWords([]);
+        setExplanations([]);
+        explanationsRef.current = [];
+        setExplainedWords([]);
+        setExplainedWordNames(new Set());
+        setIsCompleted(false);
+        setIsStreaming(false);
+        setIsExplaining(false);
+        setIsSmartExplaining(false);
+        setSmartExplainPhase('selecting');
+        setManualWords([]);
+        toast.success('Text and all explanations cleared!');
+      });
+    }
+  };
+
+  // Clear Explanations with confirmation dialog
+  const handleClearExplanations = () => {
+    if (explanations.length > 0) {
+      setDialogType('clearExplanations');
+      setShowConfirmDialog(true);
+      setConfirmAction(() => () => {
+        setExplanations([]);
+        explanationsRef.current = [];
+        setExplainedWords([]);
+        setExplainedWordNames(new Set());
+        setIsCompleted(false);
+        setIsStreaming(false);
+        setIsExplaining(false);
+        toast.success('All explanations cleared!');
+      });
     }
   };
 
@@ -670,6 +749,51 @@ export default function MainApp() {
     });
   };
 
+  // Handle clicking on explained words - scroll to explanation and expand
+  const handleExplainedWordClick = (word: string) => {
+    // First, expand the card for this word
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      newSet.add(word);
+      return newSet;
+    });
+
+    // Scroll to explanation section
+    if (explanationSectionRef.current) {
+      explanationSectionRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      });
+
+      // After a short delay, scroll within the explanation container to bring the specific word to top
+      setTimeout(() => {
+        if (explanationSectionRef.current) {
+          // Find the specific explanation card for this word
+          const explanationCards = explanationSectionRef.current.querySelectorAll('[data-word]');
+          const targetCard = Array.from(explanationCards).find(card => 
+            card.getAttribute('data-word') === word
+          ) as HTMLElement;
+
+          if (targetCard) {
+            // Get the explanation container's scroll position
+            const container = explanationSectionRef.current;
+            const containerRect = container.getBoundingClientRect();
+            const targetRect = targetCard.getBoundingClientRect();
+            
+            // Calculate the scroll position needed to bring the card to the top
+            const scrollTop = container.scrollTop + (targetRect.top - containerRect.top);
+            
+            // Smooth scroll within the explanation container
+            container.scrollTo({
+              top: scrollTop,
+              behavior: 'smooth'
+            });
+          }
+        }
+      }, 400); // Slightly longer delay for a more gentle experience
+    }
+  };
+
   // Get more explanations with loading state
   const handleGetMoreExplanations = async (explanation: any) => {
     setLoadingMore(prev => new Set(prev).add(explanation.word));
@@ -707,6 +831,39 @@ export default function MainApp() {
     }
   };
 
+  // Function to scroll to searched word
+  const scrollToSearchedWord = (searchTerm: string) => {
+    if (!textCanvasRef.current || !searchTerm) return;
+    
+    const textElement = textCanvasRef.current;
+    const textContent = textElement.textContent || '';
+    const searchIndex = textContent.toLowerCase().indexOf(searchTerm.toLowerCase());
+    
+    if (searchIndex !== -1) {
+      // Create a temporary span to measure the position
+      const tempSpan = document.createElement('span');
+      tempSpan.textContent = textContent.substring(0, searchIndex);
+      tempSpan.style.visibility = 'hidden';
+      tempSpan.style.position = 'absolute';
+      tempSpan.style.whiteSpace = 'pre-wrap';
+      tempSpan.style.fontSize = '14px';
+      tempSpan.style.lineHeight = '1.5';
+      tempSpan.style.padding = '12px 16px';
+      tempSpan.style.width = textElement.offsetWidth + 'px';
+      
+      document.body.appendChild(tempSpan);
+      const offsetTop = tempSpan.offsetHeight;
+      document.body.removeChild(tempSpan);
+      
+      // Scroll to the position with some offset
+      const scrollTop = offsetTop - textElement.offsetHeight / 2;
+      textElement.scrollTo({
+        top: Math.max(0, scrollTop),
+        behavior: 'smooth'
+      });
+    }
+  };
+
   // Search functionality with Trie
   useEffect(() => {
     if (text && searchTerm) {
@@ -716,6 +873,11 @@ export default function MainApp() {
         .map((word, index) => ({ word, positions: [index] }))
         .filter(item => item.word.includes(searchTerm.toLowerCase()));
       setSearchResults(matches);
+      
+      // Auto-scroll to the first match
+      if (matches.length > 0) {
+        setTimeout(() => scrollToSearchedWord(searchTerm), 100);
+      }
     } else {
       setSearchResults([]);
     }
@@ -749,7 +911,11 @@ export default function MainApp() {
 
       if (className) {
         return React.createElement('span', 
-          { key: index, className },
+          { 
+            key: index, 
+            className,
+            onClick: (isExplained || isManualWordExplained) ? () => handleExplainedWordClick(cleanWord) : undefined
+          },
           word,
           isSelected && !isExplained && React.createElement('button', 
             {
@@ -804,45 +970,46 @@ export default function MainApp() {
     }),
     
     React.createElement('main', { className: 'max-w-7xl mx-auto px-4 py-8' },
-      React.createElement('div', { className: 'bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden' },
-        // Tab Navigation
-        React.createElement('div', { className: 'border-b border-gray-200 bg-gray-50 px-6 py-4' },
-          React.createElement('div', { className: 'tab-container inline-flex h-12 items-center justify-center rounded-lg bg-white shadow-sm border border-gray-200 p-1' },
-            // Sliding background indicator
-            React.createElement('div', {
-              className: 'tab-slider',
-              style: {
-                left: `${sliderPosition.left}px`,
-                width: `${sliderPosition.width}px`,
-              }
-            }),
-            
-            React.createElement('button', {
-              ref: (el) => { tabRefs.current.image = el as HTMLButtonElement; },
-              onClick: () => handleTabChange('image'),
-              className: `tab-button inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium ${activeTab === 'image' ? 'active' : ''}`
-            }, 'Image'),
-            React.createElement('button', {
-              ref: (el) => { tabRefs.current.text = el as HTMLButtonElement; },
-              onClick: () => handleTabChange('text'),
-              className: `tab-button inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium ${activeTab === 'text' ? 'active' : ''}`
-            }, 'Text'),
-            React.createElement('button', {
-              ref: (el) => { tabRefs.current.words = el as HTMLButtonElement; },
-              onClick: () => handleTabChange('words'),
-              className: `tab-button inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium ${activeTab === 'words' ? 'active' : ''}`
-            }, 'Words')
-          )
-        ),
-
-        // Main Content Area - 50/50 Split
-        React.createElement('div', { className: 'flex' },
-          // Left Side - Main Content (50%)
-          React.createElement('div', { className: 'w-1/2 p-6' },
+      // Main Content Area - 50/50 Split with gap
+      React.createElement('div', { className: 'flex gap-6' },
+        // Left Side - User Input Card (50% for Text/Words, 100% for Image)
+        React.createElement('div', { className: `${displayedTab === 'image' ? 'w-full' : 'w-1/2'}` },
+          React.createElement('div', { className: 'bg-white rounded-2xl shadow-md p-6 h-full' },
+            // Tab Navigation
+            React.createElement('div', { className: 'mb-6' },
+              React.createElement('div', { className: 'tab-container inline-flex h-12 items-center justify-center rounded-lg bg-white shadow-sm border border-gray-200 p-1' },
+                // Sliding background indicator
+                React.createElement('div', {
+                  className: 'tab-slider',
+                  style: {
+                    left: `${sliderPosition.left}px`,
+                    width: `${sliderPosition.width}px`,
+                  }
+                }),
+                
+                React.createElement('button', {
+                  ref: (el) => { tabRefs.current.image = el as HTMLButtonElement; },
+                  onClick: () => handleTabChange('image'),
+                  className: `tab-button inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium ${activeTab === 'image' ? 'active' : ''}`
+                }, 'Image'),
+                React.createElement('button', {
+                  ref: (el) => { tabRefs.current.text = el as HTMLButtonElement; },
+                  onClick: () => handleTabChange('text'),
+                  className: `tab-button inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium ${activeTab === 'text' ? 'active' : ''}`
+                }, 'Text'),
+                React.createElement('button', {
+                  ref: (el) => { tabRefs.current.words = el as HTMLButtonElement; },
+                  onClick: () => handleTabChange('words'),
+                  className: `tab-button inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium ${activeTab === 'words' ? 'active' : ''}`
+                }, 'Words')
+              ),
+              // Separator line below tabs
+              React.createElement('div', { className: 'mt-4 border-b border-gray-200' })
+            ),
             // Image Tab Content
             displayedTab === 'image' && React.createElement('div', { className: `space-y-6 tab-content ${activeTab === 'image' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
               React.createElement('div', {
-                className: `relative border-2 border-dashed rounded-xl p-12 transition-all duration-300 cursor-pointer ${dragActive ? 'border-primary-500 bg-primary-50' : 'border-primary-200 hover:border-primary-300 bg-primary-25'} ${isLoading ? 'pointer-events-none opacity-50' : ''}`,
+                className: `relative border-2 border-dashed rounded-xl p-12 transition-all duration-300 cursor-pointer transform hover:scale-[1.02] max-w-4xl mx-auto ${dragActive ? 'border-primary-500 bg-primary-50' : 'border-primary-200 hover:border-primary-300 bg-primary-25'} ${isLoading ? 'pointer-events-none opacity-50' : ''}`,
                 onDragEnter: (e) => { e.preventDefault(); setDragActive(true); },
                 onDragLeave: (e) => { e.preventDefault(); setDragActive(false); },
                 onDragOver: (e) => { e.preventDefault(); setDragActive(true); },
@@ -897,17 +1064,18 @@ export default function MainApp() {
               // Search Bar
               React.createElement('input', {
                 type: 'text',
-                placeholder: 'Search Word',
+                placeholder: 'Type word here to saerch ...',
                 value: searchTerm,
                 onChange: (e) => setSearchTerm(e.target.value),
-                className: 'w-full h-10 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400'
+                className: 'w-full h-10 px-4 py-2 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200'
               }),
 
               // Text Area with Smart Explain Overlay
               React.createElement('div', { className: 'relative' },
                 text 
                   ? React.createElement('div', {
-                      className: 'w-full min-h-[280px] px-4 py-3 border border-gray-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap',
+                      ref: textCanvasRef,
+                      className: `w-full h-[280px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap overflow-y-auto hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : ''}`,
                       onDoubleClick: handleDoubleClick
                     }, renderHighlightedText())
                   : React.createElement('textarea', {
@@ -915,13 +1083,43 @@ export default function MainApp() {
                       value: text,
                       onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => {
                         if (explainedWords.length === 0) {
-                          setText(e.target.value);
+                          const newText = e.target.value;
+                          if (validateWordLimit(newText)) {
+                            setText(newText);
+                          }
                         }
                       },
-                      className: 'w-full min-h-[280px] px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none',
+                      className: `w-full h-[280px] px-4 py-3 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] resize-none overflow-y-auto transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : ''}`,
                       disabled: explainedWords.length > 0
                     }),
                 
+                // Smart Select Overlay
+                isSmartSelecting && React.createElement('div', { className: 'text-canvas-overlay' },
+                  React.createElement('div', { className: 'loading-content' },
+                    React.createElement('div', { className: 'loading-icon smart-select-icon' },
+                      React.createElement('svg', { 
+                        className: 'w-full h-full text-purple-500', 
+                        fill: 'none', 
+                        stroke: 'currentColor', 
+                        viewBox: '0 0 24 24' 
+                      },
+                        React.createElement('path', { 
+                          strokeLinecap: 'round', 
+                          strokeLinejoin: 'round', 
+                          strokeWidth: 2, 
+                          d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' 
+                        })
+                      )
+                    ),
+                    React.createElement('h3', { className: 'loading-title' }, 'Analyzing text for difficult words'),
+                    React.createElement('div', { className: 'pulse-dots' },
+                      React.createElement('span', {}, '●'),
+                      React.createElement('span', {}, '●'),
+                      React.createElement('span', {}, '●')
+                    )
+                  )
+                ),
+
                 // Smart Explain Overlay
                 isSmartExplaining && React.createElement('div', { className: 'text-canvas-overlay' },
                   React.createElement('div', { className: 'loading-content' },
@@ -975,46 +1173,136 @@ export default function MainApp() {
                       )
                     )
                   )
+                ),
+                
+                // Preparing Explanations Overlay
+                isPreparingExplanations && React.createElement('div', { className: 'absolute inset-0 flex items-center justify-center bg-white bg-opacity-60 rounded-lg' },
+                  React.createElement('div', { className: 'text-center space-y-4' },
+                    React.createElement('div', { className: 'flex justify-center' },
+                      React.createElement('div', { className: 'relative' },
+                        React.createElement('div', { className: 'animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500' }),
+                        React.createElement('div', { className: 'absolute inset-0 flex items-center justify-center' },
+                          React.createElement('svg', { className: 'h-6 w-6 text-purple-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' })
+                          )
+                        )
+                      )
+                    ),
+                    React.createElement('h3', { className: 'text-lg font-medium text-purple-700' }, 'Preparing explanations'),
+                    // React.createElement('p', { className: 'text-sm text-purple-600' }, 'Smart work happening behind the scenes...')
+                  )
                 )
               ),
 
-              // Action Buttons
-              React.createElement('div', { className: 'flex items-center space-x-3' },
-                React.createElement('button', {
-                  onClick: handleSmartSelectWords,
-                  disabled: !text.trim() || isSmartSelecting || explainedWords.length > 0,
-                  className: 'inline-flex items-center justify-center rounded-lg font-medium border border-primary-300 text-primary-600 hover:bg-primary-50 h-9 px-4 text-sm transition-all duration-200 disabled:opacity-50'
-                }, isSmartSelecting ? 'Selecting...' : 'Smart select words'),
-                
-                // Explain button with stop functionality
-                React.createElement('div', { className: 'flex space-x-2' },
+              // Action Buttons - Three Groups Layout
+              React.createElement('div', { className: 'flex justify-between items-start' },
+                // Left Button Group - Clear Buttons
+                React.createElement('div', { className: 'flex flex-col space-y-3' },
                   React.createElement('button', {
-                    onClick: handleExplainWords,
-                    disabled: (selectedWords.length === 0 && manualWords.length === 0) || isExplaining || isSmartExplaining,
-                    className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-9 px-4 text-sm transition-all duration-200 disabled:opacity-50'
-                  },
-                    isExplaining && !isSmartExplaining && React.createElement('div', { className: 'animate-spin rounded-full h-3 w-3 border-b border-white mr-2' }),
-                    isExplaining && !isSmartExplaining ? 'Explaining...' : 'Explain'
+                    onClick: handleClearText,
+                    disabled: !text.trim(),
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium border border-red-300 text-red-600 hover:bg-red-50 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
+                  }, 
+                    React.createElement('svg', { className: 'w-4 h-4 mr-2', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16' })
+                    ),
+                    'Clear Text'
                   ),
                   
-                  // Stop button (only show when streaming)
-                  isStreaming && React.createElement('button', {
-                    onClick: handleStopStreaming,
-                    className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-9 px-3 text-sm transition-all duration-200'
-                  }, 'Stop')
+                  React.createElement('button', {
+                    onClick: handleClearExplanations,
+                    disabled: explanations.length === 0,
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium border border-red-300 text-red-600 hover:bg-red-50 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
+                  }, 
+                    React.createElement('svg', { className: 'w-4 h-4 mr-2', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16' })
+                    ),
+                    'Clear Explanations'
+                  )
                 ),
                 
-                React.createElement('button', {
-                  onClick: handleSmartExplain,
-                  disabled: !text.trim() || isSmartExplaining || isExplaining || explainedWords.length > 0,
-                  className: 'inline-flex items-center justify-center rounded-lg font-medium bg-green-500 text-white hover:bg-green-600 h-9 px-4 text-sm transition-all duration-200 disabled:opacity-50'
-                }, isSmartExplaining ? 'Smart explaining...' : 'Smart explain'),
+                // Middle Button Group - Smart Select and Unselect
+                React.createElement('div', { className: 'flex flex-col space-y-3' },
+                  React.createElement('button', {
+                    onClick: handleSmartSelectWords,
+                    disabled: !text.trim() || isSmartSelecting || explainedWords.length > 0,
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium border border-primary-300 text-primary-600 hover:bg-primary-50 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
+                  }, 
+                    React.createElement('svg', { className: 'w-4 h-4 mr-2', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' })
+                    ),
+                    isSmartSelecting ? 'Selecting...' : 'Smart select words'
+                  ),
+                  
+                  React.createElement('button', {
+                    onClick: handleUnselectAllWords,
+                    disabled: selectedWords.length === 0,
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium border border-gray-300 text-gray-600 hover:bg-gray-50 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
+                  }, 
+                    React.createElement('svg', { className: 'w-4 h-4 mr-2', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
+                    ),
+                    'Unselect all words'
+                  )
+                ),
                 
-                React.createElement('button', {
-                  onClick: handleClearAll,
-                  disabled: !hasData(),
-                  className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-9 px-4 text-sm transition-all duration-200 disabled:opacity-50'
-                }, 'Clear all')
+                // Right Button Group - Explain Buttons
+                React.createElement('div', { className: 'flex flex-col space-y-3' },
+                  // Explain button with stop functionality
+                  React.createElement('div', { className: 'flex space-x-2' },
+                    React.createElement('button', {
+                      onClick: handleExplainWords,
+                      disabled: (selectedWords.length === 0 && manualWords.length === 0) || isExplaining || isSmartExplaining,
+                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
+                    },
+                      isExplaining && !isSmartExplaining ? 
+                        React.createElement('div', { className: 'animate-spin rounded-full h-3 w-3 border-b border-white mr-2' }) :
+                        React.createElement('svg', { className: 'w-4 h-4 mr-2', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
+                        ),
+                      isExplaining && !isSmartExplaining ? 'Explaining...' : `Explain ${selectedWords.length} word${selectedWords.length !== 1 ? 's' : ''}`
+                    ),
+                    
+                    // Stop button (only show when streaming)
+                    isStreaming && React.createElement('button', {
+                      onClick: handleStopStreaming,
+                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02]'
+                    }, 
+                      React.createElement('svg', { className: 'w-4 h-4 mr-2', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                        React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z' }),
+                        React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 9h6v6H9z' })
+                      ),
+                      'Stop'
+                    )
+                  ),
+                  
+                  React.createElement('button', {
+                    onClick: handleSmartExplain,
+                    disabled: !text.trim() || isSmartExplaining || isExplaining || explainedWords.length > 0,
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium text-white h-10 px-4 text-sm transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg disabled:hover:scale-100 disabled:opacity-50 relative overflow-hidden',
+                    style: {
+                      background: 'linear-gradient(45deg, #8B5CF6, #EC4899, #EF4444, #8B5CF6, #EC4899, #EF4444)',
+                      backgroundSize: '300% 300%',
+                      animation: 'gradientShift 3s ease infinite'
+                    }
+                  }, 
+                    React.createElement('style', {}, `
+                      @keyframes gradientShift {
+                        0% { background-position: 0% 50%; }
+                        25% { background-position: 100% 50%; }
+                        50% { background-position: 100% 100%; }
+                        75% { background-position: 0% 100%; }
+                        100% { background-position: 0% 50%; }
+                      }
+                    `),
+                    React.createElement('div', { className: 'absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300' }),
+                    React.createElement('svg', { className: 'w-4 h-4 mr-2 relative z-10', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' }),
+                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 10V3L4 14h7v7l9-11h-7z' })
+                    ),
+                    React.createElement('span', { className: 'relative z-10' }, isSmartExplaining ? 'Smart explaining...' : 'Smart explain')
+                  )
+                )
               ),
 
               // Instructions Panel
@@ -1057,7 +1345,7 @@ export default function MainApp() {
                       }
                     }
                   },
-                  className: 'flex-1 h-10 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400'
+                  className: 'flex-1 h-10 px-4 py-2 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200'
                 }),
                 React.createElement('button', {
                   onClick: () => {
@@ -1068,7 +1356,7 @@ export default function MainApp() {
                     }
                   },
                   disabled: !manualWordInput.trim() || manualWords.includes(manualWordInput.trim().toLowerCase()),
-                  className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-10 px-4 text-sm disabled:opacity-50'
+                  className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
                 }, 'Add')
               ),
 
@@ -1113,7 +1401,7 @@ export default function MainApp() {
                     React.createElement('button', {
                       onClick: handleExplainWords,
                       disabled: isExplaining || isSmartExplaining || manualWords.every(word => explainedWordNames.has(word)),
-                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-12 px-6 text-base disabled:opacity-50'
+                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
                     },
                       isExplaining && !isSmartExplaining && React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2' }),
                       isExplaining && !isSmartExplaining ? 'Explaining...' : `Explain ${manualWords.filter(word => !explainedWordNames.has(word)).length} word${manualWords.filter(word => !explainedWordNames.has(word)).length > 1 ? 's' : ''}`
@@ -1122,7 +1410,7 @@ export default function MainApp() {
                     // Stop button for Words tab - shows right next to Explain button when needed
                     isStreaming && React.createElement('button', {
                       onClick: handleStopStreaming,
-                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-12 px-6 text-base'
+                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02]'
                     }, 'Stop')
                   ),
                   
@@ -1139,39 +1427,46 @@ export default function MainApp() {
                       setIsExplaining(false);
                       toast.success('All words and explanations cleared!');
                     },
-                    className: 'inline-flex items-center justify-center rounded-lg font-medium bg-gray-500 text-white hover:bg-gray-600 h-10 px-6 text-sm'
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium bg-gray-500 text-white hover:bg-gray-600 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02]'
                   }, 'Clear All')
                 )
               )
             )
-          ),
+          )
+        ),
 
-          // Right Side - Explanations Panel (50%)
-          React.createElement('div', { className: 'w-1/2 border-l border-gray-200 bg-gray-50 p-6 flex flex-col' },
-            // Header with search and sort
+        // Right Side - Explanations Card (50%) - Only show for Text and Words tabs
+        displayedTab !== 'image' && React.createElement('div', { className: 'w-1/2' },
+          React.createElement('div', { className: 'bg-white rounded-2xl shadow-md p-6 h-full flex flex-col' },
+            // Explanations Header
             React.createElement('div', { className: 'mb-4' },
-              React.createElement('div', { className: 'flex items-center justify-between mb-4' },
-                React.createElement('h3', { className: 'text-lg font-semibold text-gray-900' }, 'Explanations'),
-                // Only show sort buttons if not searching by words (manual words)
-                displayedTab !== 'words' && React.createElement('div', { className: 'flex space-x-2' },
-                  React.createElement('button', {
-                    onClick: () => setSortBy('complexity'),
-                    className: `px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 ${sortBy === 'complexity' ? 'bg-primary-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
-                  }, 'Sort by original order'),
-                  React.createElement('button', {
-                    onClick: () => setSortBy('alphabetical'),
-                    className: `px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 ${sortBy === 'alphabetical' ? 'bg-primary-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
-                  }, 'Sort by alphabetical order')
-                )
-              ),
-              
-              // Search box for explanations
+              React.createElement('h3', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Explanations'),
+              // Separator line below Explanations heading
+              React.createElement('div', { className: 'border-b border-gray-200 mb-4' })
+            ),
+
+            // Sorting buttons (below separator)
+            displayedTab !== 'words' && React.createElement('div', { className: 'mb-4' },
+              React.createElement('div', { className: 'flex space-x-2' },
+                React.createElement('button', {
+                  onClick: () => setSortBy('complexity'),
+                  className: `px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 transform hover:scale-[1.02] ${sortBy === 'complexity' ? 'bg-primary-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
+                }, 'Sort by original order'),
+                React.createElement('button', {
+                  onClick: () => setSortBy('alphabetical'),
+                  className: `px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 transform hover:scale-[1.02] ${sortBy === 'alphabetical' ? 'bg-primary-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
+                }, 'Sort by alphabetical order')
+              )
+            ),
+            
+            // Search box for explanations (below sorting buttons)
+            React.createElement('div', { className: 'mb-4' },
               React.createElement('input', {
                 type: 'text',
-                placeholder: 'Search word...',
+                placeholder: 'Type word here to saerch ...',
                 value: explanationSearchTerm,
                 onChange: (e) => setExplanationSearchTerm(e.target.value),
-                className: 'w-full h-9 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition-all duration-200'
+                className: 'w-full h-9 px-3 py-2 border border-purple-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200'
               })
             ),
 
@@ -1179,6 +1474,7 @@ export default function MainApp() {
             
             // Scrollable Explanation Cards Container
             React.createElement('div', { 
+              ref: explanationSectionRef,
               key: explanationKey,
               className: 'flex-1 overflow-y-auto max-h-96 space-y-4' 
             },
@@ -1189,7 +1485,11 @@ export default function MainApp() {
                     const isExpanded = expandedCards.has(explanation.word);
                     const isLoadingMoreExamples = loadingMore.has(explanation.word);
                     
-                    return React.createElement('div', { key: index, className: 'bg-white rounded-lg border border-gray-200 overflow-hidden' },
+                    return React.createElement('div', { 
+                      key: index, 
+                      'data-word': explanation.word,
+                      className: 'bg-purple-100 rounded-xl overflow-hidden transition-all duration-300 ease-in-out hover:bg-purple-150' 
+                    },
                       // Card Header (always visible)
                       React.createElement('div', {
                         className: 'p-4 cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100',
@@ -1239,7 +1539,7 @@ export default function MainApp() {
                           React.createElement('button', {
                             onClick: () => handleGetMoreExplanations(explanation),
                             disabled: isLoadingMoreExamples,
-                            className: 'inline-flex items-center text-xs bg-purple-500 text-white px-3 py-1 rounded-full hover:bg-purple-600 disabled:opacity-50 transition-all duration-200'
+                            className: 'inline-flex items-center text-xs bg-purple-500 text-white h-10 px-4 rounded-full hover:bg-purple-600 disabled:opacity-50 transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100'
                           },
                             isLoadingMoreExamples && React.createElement('div', { className: 'animate-spin rounded-full h-3 w-3 border-b border-white mr-1' }),
                             isLoadingMoreExamples ? 'Loading...' : 'View more examples'
@@ -1259,8 +1559,8 @@ export default function MainApp() {
             React.createElement('div', { className: 'mt-4 pt-4 border-t border-gray-200' },
               // Streaming indicator
               isStreaming && React.createElement('div', { className: 'flex items-center justify-center mb-4' },
-                React.createElement('div', { className: 'flex items-center space-x-2 text-blue-600' },
-                  React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500' }),
+                React.createElement('div', { className: 'flex items-center space-x-2 text-purple-600' },
+                  React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500' }),
                   React.createElement('span', { className: 'text-sm' }, 'Generating explanations...')
                 )
               ),
@@ -1283,9 +1583,15 @@ export default function MainApp() {
     React.createElement(ConfirmDialog, {
       open: showConfirmDialog,
       onOpenChange: setShowConfirmDialog,
-      title: 'Clear existing data?',
-      description: 'All existing data will be erased. Do you still want to start fresh?',
-      confirmText: 'Yes, clear all',
+      title: dialogType === 'clearText' ? 'Clear Text?' : 
+             dialogType === 'clearExplanations' ? 'Clear Explanations?' : 
+             'Clear existing data?',
+      description: dialogType === 'clearText' ? 'All text and explanations will be cleared. Are you sure?' :
+                  dialogType === 'clearExplanations' ? 'This will delete all explanations. Are you sure?' :
+                  'All existing data will be erased. Do you still want to start fresh?',
+      confirmText: dialogType === 'clearText' ? 'Yes, clear text' :
+                  dialogType === 'clearExplanations' ? 'Yes, clear explanations' :
+                  'Yes, clear all',
       cancelText: 'Cancel',
       variant: 'destructive',
       onConfirm: () => {
