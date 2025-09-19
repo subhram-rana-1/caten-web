@@ -495,6 +495,82 @@
     width: 300px;
     height: 300px;
   }
+
+  /* Mobile-specific improvements */
+  @media (max-width: 640px) {
+    /* Improve touch targets */
+    button, input, textarea, select {
+      min-height: 44px;
+    }
+    
+    /* Better spacing for mobile */
+    .mobile-spacing {
+      padding: 0.75rem;
+    }
+    
+    /* Optimize text selection for mobile */
+    ::selection {
+      background-color: rgba(149, 39, 245, 0.2);
+    }
+    
+    /* Improve scroll behavior on mobile */
+    .overflow-y-auto {
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Better focus states for mobile */
+    button:focus-visible,
+    input:focus-visible,
+    textarea:focus-visible {
+      outline: 2px solid #9527F5;
+      outline-offset: 2px;
+    }
+  }
+
+  /* Tablet-specific improvements */
+  @media (min-width: 641px) and (max-width: 1024px) {
+    /* Medium spacing for tablets */
+    .tablet-spacing {
+      padding: 1rem;
+    }
+    
+    /* Optimize for tablet touch */
+    button, input, textarea, select {
+      min-height: 40px;
+    }
+  }
+
+  /* Large screen optimizations */
+  @media (min-width: 1025px) {
+    /* Hover effects only on desktop */
+    .hover-effect:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px -4px rgba(149, 39, 245, 0.2);
+    }
+  }
+
+  /* High DPI display optimizations */
+  @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    /* Ensure crisp text on high DPI displays */
+    body {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+  }
+
+  /* Dark mode support (if needed in future) */
+  @media (prefers-color-scheme: dark) {
+    /* Future dark mode styles can be added here */
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 /* Toaster styles */
