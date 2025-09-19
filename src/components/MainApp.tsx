@@ -108,6 +108,43 @@ export default function MainApp() {
     return true;
   };
 
+  // Handle random paragraph button click with API call
+  const handleRandomParagraph = async () => {
+    setIsLoading(true);
+    
+    try {
+      const response = await fetch('/api/v1/get-random-paragraph', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const data = await response.json();
+      console.log('API Response:', data); // Debug log
+      
+      if (data.text || data.Text) {
+        const paragraphText = data.text || data.Text;
+        console.log('Using paragraph text:', paragraphText); // Debug log
+        // Validate word limit before setting text
+        if (!validateWordLimit(paragraphText)) {
+          return; // Don't set text if it exceeds limit
+        }
+        
+        setText(paragraphText);
+        toast.success('Random paragraph loaded!');
+      } else {
+        console.error('Unexpected API response format:', data);
+        throw new Error('No text received from API');
+      }
+    } catch (error) {
+      console.error('Error fetching random paragraph:', error);
+      showError('Failed to load random paragraph. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const clearAllData = () => {
     setText('');
     setSelectedWords([]);
@@ -1155,8 +1192,8 @@ export default function MainApp() {
                   React.createElement('div', { className: 'p-4 bg-primary-100 rounded-full' },
                     isLoading 
                       ? React.createElement('div', { className: 'animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500' })
-                      : React.createElement('svg', { className: 'h-8 w-8 text-primary-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4l0 8m-4-4l4-4 4 4M6 16h12M6 16l0 2M18 16l0 2M6 18h12' })
+                      : React.createElement('svg', { className: 'h-10 w-10 text-primary-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 1.5, d: 'M12 4l0 8m-4-4l4-4 4 4M6 16h12M6 16l0 2M18 16l0 2M6 18h12' })
                         )
                   ),
                   
@@ -1197,20 +1234,39 @@ export default function MainApp() {
                       className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap overflow-y-auto hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : ''}`,
                       onDoubleClick: handleDoubleClick
                     }, renderHighlightedText())
-                  : React.createElement('textarea', {
-                      placeholder: 'Paste your text here (Dont write manually)...',
-                      value: text,
-                      onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-                        if (explainedWords.length === 0) {
-                          const newText = e.target.value;
-                          if (validateWordLimit(newText)) {
-                            setText(newText);
+                  : React.createElement('div', { className: 'relative' },
+                      React.createElement('textarea', {
+                        placeholder: 'Paste your text here (Dont write manually)...',
+                        value: text,
+                        onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                          if (explainedWords.length === 0) {
+                            const newText = e.target.value;
+                            if (validateWordLimit(newText)) {
+                              setText(newText);
+                            }
                           }
-                        }
+                        },
+                        className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] resize-none overflow-y-auto transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : ''}`,
+                        disabled: explainedWords.length > 0
+                      }),
+                      // Random paragraph button - only show when text is empty
+                      !text.trim() && React.createElement('button', {
+                        onClick: handleRandomParagraph,
+                        disabled: isLoading,
+                        className: `absolute top-3 right-3 inline-flex items-center justify-center rounded-lg font-medium h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] ${
+                          isLoading 
+                            ? 'bg-purple-400 text-white cursor-not-allowed' 
+                            : 'bg-purple-500 text-white hover:bg-purple-600'
+                        }`
                       },
-                      className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] resize-none overflow-y-auto transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : ''}`,
-                      disabled: explainedWords.length > 0
-                    }),
+                        isLoading 
+                          ? React.createElement('div', { className: 'animate-spin rounded-full h-3 w-3 border-b border-white mr-1' })
+                          : React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                              React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' })
+                            ),
+                        isLoading ? 'Loading...' : 'Try with random paragraph'
+                      )
+                    ),
                 
                 // Smart Select Overlay
                 isSmartSelecting && React.createElement('div', { className: 'text-canvas-overlay' },

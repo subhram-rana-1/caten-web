@@ -8,4 +8,7 @@ export const CONFIG = {
   
   // Maximum number of words that can be processed from text (existing)
   MAX_TEXT_WORDS: 500,
+  
+  // Random paragraph word count for vocabulary improvement
+  RANDOM_PARAGRAPH_WORD_COUNT: 50,
 } as const;
