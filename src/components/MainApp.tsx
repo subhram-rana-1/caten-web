@@ -974,37 +974,26 @@ export default function MainApp() {
       React.createElement('div', { className: 'flex gap-6' },
         // Left Side - User Input Card (50% for Text/Words, 100% for Image)
         React.createElement('div', { className: `${displayedTab === 'image' ? 'w-full' : 'w-1/2'}` },
-          React.createElement('div', { className: 'bg-white rounded-2xl shadow-md p-6 h-full' },
+          React.createElement('div', { className: 'bg-white rounded-2xl shadow-lg shadow-purple-100 p-6 h-full' },
             // Tab Navigation
             React.createElement('div', { className: 'mb-6' },
-              React.createElement('div', { className: 'tab-container inline-flex h-12 items-center justify-center rounded-lg bg-white shadow-sm border border-gray-200 p-1' },
-                // Sliding background indicator
-                React.createElement('div', {
-                  className: 'tab-slider',
-                  style: {
-                    left: `${sliderPosition.left}px`,
-                    width: `${sliderPosition.width}px`,
-                  }
-                }),
-                
+              React.createElement('div', { className: 'inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 p-1 w-full' },
                 React.createElement('button', {
                   ref: (el) => { tabRefs.current.image = el as HTMLButtonElement; },
                   onClick: () => handleTabChange('image'),
-                  className: `tab-button inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium ${activeTab === 'image' ? 'active' : ''}`
+                  className: `flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-lg font-normal transition-all duration-200 ${activeTab === 'image' ? 'bg-purple-500 text-white shadow-sm' : 'text-gray-600 hover:text-purple-700'}`
                 }, 'Image'),
                 React.createElement('button', {
                   ref: (el) => { tabRefs.current.text = el as HTMLButtonElement; },
                   onClick: () => handleTabChange('text'),
-                  className: `tab-button inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium ${activeTab === 'text' ? 'active' : ''}`
+                  className: `flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-lg font-normal transition-all duration-200 ${activeTab === 'text' ? 'bg-purple-500 text-white shadow-sm' : 'text-gray-600 hover:text-purple-700'}`
                 }, 'Text'),
                 React.createElement('button', {
                   ref: (el) => { tabRefs.current.words = el as HTMLButtonElement; },
                   onClick: () => handleTabChange('words'),
-                  className: `tab-button inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium ${activeTab === 'words' ? 'active' : ''}`
+                  className: `flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-lg font-normal transition-all duration-200 ${activeTab === 'words' ? 'bg-purple-500 text-white shadow-sm' : 'text-gray-600 hover:text-purple-700'}`
                 }, 'Words')
-              ),
-              // Separator line below tabs
-              React.createElement('div', { className: 'mt-4 border-b border-gray-200' })
+              )
             ),
             // Image Tab Content
             displayedTab === 'image' && React.createElement('div', { className: `space-y-6 tab-content ${activeTab === 'image' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
@@ -1061,13 +1050,13 @@ export default function MainApp() {
 
             // Text Tab Content
             displayedTab === 'text' && React.createElement('div', { className: `space-y-4 tab-content ${activeTab === 'text' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
-              // Search Bar
-              React.createElement('input', {
+              // Search Bar - only show when there is text
+              text.trim() && React.createElement('input', {
                 type: 'text',
                 placeholder: 'Type word here to saerch ...',
                 value: searchTerm,
                 onChange: (e) => setSearchTerm(e.target.value),
-                className: 'w-full h-10 px-4 py-2 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200'
+                className: 'w-full h-10 px-4 py-2 border border-purple-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200'
               }),
 
               // Text Area with Smart Explain Overlay
@@ -1198,23 +1187,21 @@ export default function MainApp() {
               React.createElement('div', { className: 'flex justify-between items-start' },
                 // Left Button Group - Clear Buttons
                 React.createElement('div', { className: 'flex flex-col space-y-3' },
-                  React.createElement('button', {
+                  text.trim() && React.createElement('button', {
                     onClick: handleClearText,
-                    disabled: !text.trim(),
-                    className: 'inline-flex items-center justify-center rounded-lg font-medium border border-red-300 text-red-600 hover:bg-red-50 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium border border-red-300 text-red-600 hover:bg-red-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
-                    React.createElement('svg', { className: 'w-4 h-4 mr-2', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                    React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                       React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16' })
                     ),
                     'Clear Text'
                   ),
                   
-                  React.createElement('button', {
+                  explanations.length > 0 && React.createElement('button', {
                     onClick: handleClearExplanations,
-                    disabled: explanations.length === 0,
-                    className: 'inline-flex items-center justify-center rounded-lg font-medium border border-red-300 text-red-600 hover:bg-red-50 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium border border-red-300 text-red-600 hover:bg-red-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
-                    React.createElement('svg', { className: 'w-4 h-4 mr-2', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                    React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                       React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16' })
                     ),
                     'Clear Explanations'
@@ -1223,23 +1210,21 @@ export default function MainApp() {
                 
                 // Middle Button Group - Smart Select and Unselect
                 React.createElement('div', { className: 'flex flex-col space-y-3' },
-                  React.createElement('button', {
+                  (text.trim() && !isSmartSelecting && explainedWords.length === 0) && React.createElement('button', {
                     onClick: handleSmartSelectWords,
-                    disabled: !text.trim() || isSmartSelecting || explainedWords.length > 0,
-                    className: 'inline-flex items-center justify-center rounded-lg font-medium border border-primary-300 text-primary-600 hover:bg-primary-50 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium border border-primary-300 text-primary-600 hover:bg-primary-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
-                    React.createElement('svg', { className: 'w-4 h-4 mr-2', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                    React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                       React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' })
                     ),
                     isSmartSelecting ? 'Selecting...' : 'Smart select words'
                   ),
                   
-                  React.createElement('button', {
+                  selectedWords.length > 0 && React.createElement('button', {
                     onClick: handleUnselectAllWords,
-                    disabled: selectedWords.length === 0,
-                    className: 'inline-flex items-center justify-center rounded-lg font-medium border border-gray-300 text-gray-600 hover:bg-gray-50 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium border border-gray-300 text-gray-600 hover:bg-gray-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
-                    React.createElement('svg', { className: 'w-4 h-4 mr-2', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                    React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                       React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
                     ),
                     'Unselect all words'
@@ -1248,84 +1233,113 @@ export default function MainApp() {
                 
                 // Right Button Group - Explain Buttons
                 React.createElement('div', { className: 'flex flex-col space-y-3' },
-                  // Explain button with stop functionality
-                  React.createElement('div', { className: 'flex space-x-2' },
-                    React.createElement('button', {
-                      onClick: handleExplainWords,
-                      disabled: (selectedWords.length === 0 && manualWords.length === 0) || isExplaining || isSmartExplaining,
-                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
-                    },
-                      isExplaining && !isSmartExplaining ? 
-                        React.createElement('div', { className: 'animate-spin rounded-full h-3 w-3 border-b border-white mr-2' }) :
-                        React.createElement('svg', { className: 'w-4 h-4 mr-2', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                  // Dynamic layout based on whether words are selected
+                  (selectedWords.length > 0 || manualWords.length > 0) ? 
+                    // When words are selected: vertical layout (stacked)
+                    React.createElement('div', { className: 'flex flex-col space-y-2' },
+                      // Explain button
+                      !isExplaining && !isSmartExplaining && React.createElement('button', {
+                        onClick: handleExplainWords,
+                        className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
+                      },
+                        React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                           React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
                         ),
-                      isExplaining && !isSmartExplaining ? 'Explaining...' : `Explain ${selectedWords.length} word${selectedWords.length !== 1 ? 's' : ''}`
-                    ),
-                    
-                    // Stop button (only show when streaming)
-                    isStreaming && React.createElement('button', {
-                      onClick: handleStopStreaming,
-                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02]'
-                    }, 
-                      React.createElement('svg', { className: 'w-4 h-4 mr-2', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                        React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z' }),
-                        React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 9h6v6H9z' })
+                        `Explain ${selectedWords.length} word${selectedWords.length !== 1 ? 's' : ''}`
                       ),
-                      'Stop'
-                    )
-                  ),
-                  
-                  React.createElement('button', {
-                    onClick: handleSmartExplain,
-                    disabled: !text.trim() || isSmartExplaining || isExplaining || explainedWords.length > 0,
-                    className: 'inline-flex items-center justify-center rounded-lg font-medium text-white h-10 px-4 text-sm transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg disabled:hover:scale-100 disabled:opacity-50 relative overflow-hidden',
-                    style: {
-                      background: 'linear-gradient(45deg, #8B5CF6, #EC4899, #EF4444, #8B5CF6, #EC4899, #EF4444)',
-                      backgroundSize: '300% 300%',
-                      animation: 'gradientShift 3s ease infinite'
-                    }
-                  }, 
-                    React.createElement('style', {}, `
-                      @keyframes gradientShift {
-                        0% { background-position: 0% 50%; }
-                        25% { background-position: 100% 50%; }
-                        50% { background-position: 100% 100%; }
-                        75% { background-position: 0% 100%; }
-                        100% { background-position: 0% 50%; }
-                      }
-                    `),
-                    React.createElement('div', { className: 'absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300' }),
-                    React.createElement('svg', { className: 'w-4 h-4 mr-2 relative z-10', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' }),
-                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 10V3L4 14h7v7l9-11h-7z' })
+                      
+                      // Smart explain button
+                      text.trim() && !isSmartExplaining && !isExplaining && explainedWords.length === 0 && React.createElement('button', {
+                        onClick: handleSmartExplain,
+                        className: 'inline-flex items-center justify-center rounded-lg font-medium text-white h-8 px-3 text-xs transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg relative overflow-hidden',
+                        style: {
+                          background: 'linear-gradient(45deg, #8B5CF6, #EC4899, #EF4444, #8B5CF6, #EC4899, #EF4444)',
+                          backgroundSize: '300% 300%',
+                          animation: 'gradientShift 3s ease infinite'
+                        }
+                      }, 
+                        React.createElement('style', {}, `
+                          @keyframes gradientShift {
+                            0% { background-position: 0% 50%; }
+                            25% { background-position: 100% 50%; }
+                            50% { background-position: 100% 100%; }
+                            75% { background-position: 0% 100%; }
+                            100% { background-position: 0% 50%; }
+                          }
+                        `),
+                        React.createElement('div', { className: 'absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300' }),
+                        React.createElement('svg', { className: 'w-3 h-3 mr-1 relative z-10', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' }),
+                          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 10V3L4 14h7v7l9-11h-7z' })
+                        ),
+                        React.createElement('span', { className: 'relative z-10' }, isSmartExplaining ? 'Smart explaining...' : 'Smart explain')
+                      )
+                    ) :
+                    // When no words selected: horizontal layout (side by side)
+                    React.createElement('div', { className: 'flex space-x-2' },
+                      // Smart explain button
+                      text.trim() && !isSmartExplaining && !isExplaining && explainedWords.length === 0 && React.createElement('button', {
+                        onClick: handleSmartExplain,
+                        className: 'inline-flex items-center justify-center rounded-lg font-medium text-white h-8 px-3 text-xs transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg relative overflow-hidden',
+                        style: {
+                          background: 'linear-gradient(45deg, #8B5CF6, #EC4899, #EF4444, #8B5CF6, #EC4899, #EF4444)',
+                          backgroundSize: '300% 300%',
+                          animation: 'gradientShift 3s ease infinite'
+                        }
+                      }, 
+                        React.createElement('style', {}, `
+                          @keyframes gradientShift {
+                            0% { background-position: 0% 50%; }
+                            25% { background-position: 100% 50%; }
+                            50% { background-position: 100% 100%; }
+                            75% { background-position: 0% 100%; }
+                            100% { background-position: 0% 50%; }
+                          }
+                        `),
+                        React.createElement('div', { className: 'absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300' }),
+                        React.createElement('svg', { className: 'w-3 h-3 mr-1 relative z-10', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' }),
+                          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 10V3L4 14h7v7l9-11h-7z' })
+                        ),
+                        React.createElement('span', { className: 'relative z-10' }, isSmartExplaining ? 'Smart explaining...' : 'Smart explain')
+                      )
                     ),
-                    React.createElement('span', { className: 'relative z-10' }, isSmartExplaining ? 'Smart explaining...' : 'Smart explain')
+                  
+                  // Stop button (only show when streaming) - always horizontal with explain buttons
+                  isStreaming && React.createElement('button', {
+                    onClick: handleStopStreaming,
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
+                  }, 
+                    React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z' }),
+                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 9h6v6H9z' })
+                    ),
+                    'Stop'
                   )
                 )
               ),
 
-              // Instructions Panel
-              React.createElement('div', { className: 'mt-8 bg-purple-50 rounded-xl p-4 border border-purple-200' },
-                React.createElement('div', { className: 'flex items-start space-x-2' },
-                  React.createElement('div', { className: 'p-1 bg-purple-100 rounded' },
-                    React.createElement('svg', { className: 'h-4 w-4 text-purple-600', fill: 'currentColor', viewBox: '0 0 20 20' },
-                      React.createElement('path', { fillRule: 'evenodd', d: 'M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z', clipRule: 'evenodd' })
-                    )
-                  ),
-                  React.createElement('div', {},
-                    React.createElement('h4', { className: 'text-sm font-medium text-purple-900 mb-2' }, 'Instructions'),
-                    React.createElement('ul', { className: 'text-xs text-purple-700 space-y-1' },
-                      React.createElement('li', {}, '• Click on Smart explain to explain important words'),
-                      React.createElement('li', {}, '• Click on Smart select words to auto select important words'),
-                      React.createElement('li', {}, '• Double click / double tap to manually select word'),
-                      React.createElement('li', {}, '• Words with purple are selected and not explained yet'),
-                      React.createElement('li', {}, '• Words with green are already explained'),
-                      React.createElement('li', {}, '• Words with yellow are search results')
-                    )
-                  )
-                )
-              )
+              // Instructions Panel - COMMENTED OUT
+              // React.createElement('div', { className: 'mt-8 p-4' },
+              //   React.createElement('div', { className: 'flex items-start space-x-2' },
+              //     React.createElement('div', { className: 'p-1 bg-purple-100 rounded' },
+              //       React.createElement('svg', { className: 'h-4 w-4 text-purple-600', fill: 'currentColor', viewBox: '0 0 20 20' },
+              //         React.createElement('path', { fillRule: 'evenodd', d: 'M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z', clipRule: 'evenodd' })
+              //       )
+              //     ),
+              //     React.createElement('div', {},
+              //       React.createElement('h4', { className: 'text-sm font-medium text-gray-700 mb-2' }, 'Instructions'),
+              //       React.createElement('ul', { className: 'text-xs text-gray-600 space-y-1' },
+              //         React.createElement('li', {}, '• Click on Smart explain to explain important words'),
+              //         React.createElement('li', {}, '• Click on Smart select words to auto select important words'),
+              //         React.createElement('li', {}, '• Double click / double tap to manually select word'),
+              //         React.createElement('li', {}, '• Words with purple are selected and not explained yet'),
+              //         React.createElement('li', {}, '• Words with green are already explained'),
+              //         React.createElement('li', {}, '• Words with yellow are search results')
+              //       )
+              //     )
+              //   )
+              // )
             ),
 
             // Words Tab Content
@@ -1437,36 +1451,21 @@ export default function MainApp() {
 
         // Right Side - Explanations Card (50%) - Only show for Text and Words tabs
         displayedTab !== 'image' && React.createElement('div', { className: 'w-1/2' },
-          React.createElement('div', { className: 'bg-white rounded-2xl shadow-md p-6 h-full flex flex-col' },
+          React.createElement('div', { className: 'bg-white rounded-2xl shadow-lg shadow-purple-100 p-6 h-full flex flex-col' },
             // Explanations Header
-            React.createElement('div', { className: 'mb-4' },
-              React.createElement('h3', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Explanations'),
-              // Separator line below Explanations heading
-              React.createElement('div', { className: 'border-b border-gray-200 mb-4' })
+            React.createElement('div', { className: 'bg-purple-500 rounded-lg p-2 flex items-center justify-center mb-4' },
+              React.createElement('h3', { className: 'text-lg font-normal text-white' }, 'Explanations')
             ),
 
-            // Sorting buttons (below separator)
-            displayedTab !== 'words' && React.createElement('div', { className: 'mb-4' },
-              React.createElement('div', { className: 'flex space-x-2' },
-                React.createElement('button', {
-                  onClick: () => setSortBy('complexity'),
-                  className: `px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 transform hover:scale-[1.02] ${sortBy === 'complexity' ? 'bg-primary-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
-                }, 'Sort by original order'),
-                React.createElement('button', {
-                  onClick: () => setSortBy('alphabetical'),
-                  className: `px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 transform hover:scale-[1.02] ${sortBy === 'alphabetical' ? 'bg-primary-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
-                }, 'Sort by alphabetical order')
-              )
-            ),
             
-            // Search box for explanations (below sorting buttons)
-            React.createElement('div', { className: 'mb-4' },
+            // Search box for explanations (only show when there are explanations)
+            explanations.length > 0 && React.createElement('div', { className: 'mb-4' },
               React.createElement('input', {
                 type: 'text',
                 placeholder: 'Type word here to saerch ...',
                 value: explanationSearchTerm,
                 onChange: (e) => setExplanationSearchTerm(e.target.value),
-                className: 'w-full h-9 px-3 py-2 border border-purple-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200'
+                className: 'w-full h-9 px-3 py-2 border border-purple-300 rounded-full text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200'
               })
             ),
 
@@ -1476,7 +1475,7 @@ export default function MainApp() {
             React.createElement('div', { 
               ref: explanationSectionRef,
               key: explanationKey,
-              className: 'flex-1 overflow-y-auto max-h-96 space-y-4' 
+              className: 'flex-1 overflow-y-auto max-h-[500px] space-y-4' 
             },
               
               
@@ -1488,23 +1487,23 @@ export default function MainApp() {
                     return React.createElement('div', { 
                       key: index, 
                       'data-word': explanation.word,
-                      className: 'bg-purple-100 rounded-xl overflow-hidden transition-all duration-300 ease-in-out hover:bg-purple-150' 
+                      className: 'bg-purple-100 rounded-xl overflow-hidden transition-all duration-300 ease-in-out hover:bg-purple-150 mr-2' 
                     },
                       // Card Header (always visible)
                       React.createElement('div', {
-                        className: 'p-4 cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100',
+                        className: 'px-4 py-2 cursor-pointer hover:bg-purple-200 transition-all duration-200 ease-in-out',
                         onClick: () => toggleCardExpansion(explanation.word)
                       },
                         React.createElement('div', { className: 'flex items-center justify-between' },
                           React.createElement('div', { className: 'flex items-center space-x-2' },
                             React.createElement('span', {
-                              className: 'font-medium text-gray-900'
+                              className: 'font-medium text-purple-700'
                             }, explanation.word)
                           ),
                           React.createElement('div', { className: 'flex items-center space-x-2' },
                             React.createElement('span', { className: 'text-xs text-purple-600' },
                               React.createElement('svg', { 
-                                className: `h-4 w-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`, 
+                                className: `h-4 w-4 transition-all duration-300 ease-in-out transform ${isExpanded ? 'rotate-180 scale-110' : 'rotate-0 scale-100'}`, 
                                 fill: 'none', 
                                 stroke: 'currentColor', 
                                 viewBox: '0 0 24 24' 
@@ -1517,46 +1516,70 @@ export default function MainApp() {
                       ),
                       
                       // Collapsible Content
-                      isExpanded && React.createElement('div', { className: 'px-4 pb-4 border-t border-gray-100' },
-                        React.createElement('p', { className: 'text-sm text-gray-700 mb-3 mt-3' }, explanation.meaning),
-                        explanation.examples?.map((example: string, idx: number) => {
-                          // Make target word bold and purple in the sentence
-                          const highlightedExample = example.replace(
-                            new RegExp(`\\b${explanation.word}\\b`, 'gi'),
-                            `<span class="font-semibold text-purple-600">${explanation.word}</span>`
-                          );
-                          
-                          return React.createElement('div', { key: idx, className: 'flex items-center space-x-2 mb-2' },
-                            React.createElement('div', { className: 'w-2 h-2 bg-purple-500 rounded-full' }),
-                            React.createElement('p', { 
-                              className: 'text-xs text-gray-600',
-                              dangerouslySetInnerHTML: { __html: highlightedExample }
-                            })
-                          );
-                        }),
-                        // See more examples button (bottom right)
-                        React.createElement('div', { className: 'flex justify-end mt-3' },
-                          React.createElement('button', {
-                            onClick: () => handleGetMoreExplanations(explanation),
-                            disabled: isLoadingMoreExamples,
-                            className: 'inline-flex items-center text-xs bg-purple-500 text-white h-10 px-4 rounded-full hover:bg-purple-600 disabled:opacity-50 transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100'
-                          },
-                            isLoadingMoreExamples && React.createElement('div', { className: 'animate-spin rounded-full h-3 w-3 border-b border-white mr-1' }),
-                            isLoadingMoreExamples ? 'Loading...' : 'View more examples'
+                      React.createElement('div', { 
+                        className: `overflow-hidden transition-all ${
+                          isExpanded 
+                            ? 'duration-500 ease-out max-h-64 opacity-100 transform translate-y-0' 
+                            : 'duration-300 ease-in-out max-h-0 opacity-0 transform -translate-y-2'
+                        }`
+                      },
+                        React.createElement('div', { className: 'px-3 py-2 bg-white border border-purple-200 rounded-lg mx-0.5 my-0.5' },
+                          React.createElement('p', { className: 'text-sm text-gray-700 mb-2 mt-2' }, explanation.meaning),
+                          explanation.examples?.map((example: string, idx: number) => {
+                            // Make target word bold and purple in the sentence
+                            const highlightedExample = example.replace(
+                              new RegExp(`\\b${explanation.word}\\b`, 'gi'),
+                              `<span class="font-semibold text-purple-600">${explanation.word}</span>`
+                            );
+                            
+                            return React.createElement('div', { key: idx, className: 'flex items-center space-x-2 mb-2' },
+                              React.createElement('div', { className: 'w-2 h-2 bg-purple-500 rounded-full' }),
+                              React.createElement('p', { 
+                                className: 'text-xs text-gray-600',
+                                dangerouslySetInnerHTML: { __html: highlightedExample }
+                              })
+                            );
+                          }),
+                          // See more examples button (bottom right)
+                          React.createElement('div', { className: 'flex justify-end mt-3 mb-2' },
+                            React.createElement('button', {
+                              onClick: () => handleGetMoreExplanations(explanation),
+                              disabled: isLoadingMoreExamples,
+                              className: 'inline-flex items-center text-xs bg-purple-500 text-white h-6 px-2 rounded-md hover:bg-purple-600 disabled:opacity-50 transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100'
+                            },
+                              isLoadingMoreExamples && React.createElement('div', { className: 'animate-spin rounded-full h-3 w-3 border-b border-white mr-1' }),
+                              isLoadingMoreExamples ? 'Loading...' : 'View more examples'
+                            )
                           )
                         )
                       )
                     );
                   })
                 : React.createElement('div', { className: 'text-center py-12 text-gray-500' },
-                    React.createElement('div', { className: 'text-4xl mb-4' }, '💡'),
+                    React.createElement('div', { className: 'flex justify-center mb-4' },
+                      React.createElement('svg', { 
+                        className: 'h-12 w-12 text-purple-500', 
+                        fill: 'currentColor', 
+                        viewBox: '0 0 24 24' 
+                      },
+                        React.createElement('path', { 
+                          d: 'M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7zM9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1z' 
+                        })
+                      )
+                    ),
                     React.createElement('h3', { className: 'text-lg font-medium text-gray-900 mb-2' }, 'No explanations yet'),
-                    React.createElement('p', { className: 'text-sm text-gray-600' }, 'Select words and click "Explain" to get AI-powered explanations.')
+                    React.createElement('p', { className: 'text-sm text-gray-600' }, 
+                      displayedTab === 'text' 
+                        ? 'Paste text and get AI-powered explanations'
+                        : displayedTab === 'words' 
+                        ? 'Enter words and get AI-powered explanations'
+                        : 'Select words and click "Explain" to get AI-powered explanations.'
+                    )
                   )
             ),
 
             // Bottom status indicators
-            React.createElement('div', { className: 'mt-4 pt-4 border-t border-gray-200' },
+            React.createElement('div', { className: 'mt-auto' },
               // Streaming indicator
               isStreaming && React.createElement('div', { className: 'flex items-center justify-center mb-4' },
                 React.createElement('div', { className: 'flex items-center space-x-2 text-purple-600' },
@@ -1565,6 +1588,20 @@ export default function MainApp() {
                 )
               ),
               
+              // Sorting tab group (above COMPLETED) - only show when there are explanations
+              displayedTab !== 'words' && explanations.length > 0 && React.createElement('div', { className: 'mb-4' },
+                React.createElement('div', { className: 'inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 p-1 w-full' },
+                  React.createElement('button', {
+                    onClick: () => setSortBy('complexity'),
+                    className: `flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-2 text-xs font-medium transition-all duration-200 ${sortBy === 'complexity' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-600 hover:text-purple-700'}`
+                  }, 'Original order'),
+                  React.createElement('button', {
+                    onClick: () => setSortBy('alphabetical'),
+                    className: `flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-2 text-xs font-medium transition-all duration-200 ${sortBy === 'alphabetical' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-600 hover:text-purple-700'}`
+                  }, 'Alphabetical order')
+                )
+              ),
+
               // Completion status
               isCompleted && React.createElement('div', { className: 'flex items-center justify-center' },
                 React.createElement('div', { className: 'flex items-center space-x-2 text-green-600' },
