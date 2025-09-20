@@ -22,6 +22,10 @@ export default function MainApp() {
   const [manualWords, setManualWords] = useState<string[]>([]);
   const [explanations, setExplanations] = useState<any[]>([]);
   const explanationsRef = useRef<any[]>([]);
+  const [textExplanations, setTextExplanations] = useState<any[]>([]);
+  const [wordsExplanations, setWordsExplanations] = useState<any[]>([]);
+  const textExplanationsRef = useRef<any[]>([]);
+  const wordsExplanationsRef = useRef<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [updateCounter, setUpdateCounter] = useState(0);
   const [forceUpdate, setForceUpdate] = useState(0);
@@ -30,18 +34,28 @@ export default function MainApp() {
   const [explainedWordNames, setExplainedWordNames] = useState<Set<string>>(new Set());
   
   // Force immediate explanation update using a different approach
-  const addExplanationImmediately = useCallback((newInfo: any) => {
-    console.log('Adding explanation immediately for:', newInfo.word);
+  const addExplanationImmediately = useCallback((newInfo: any, tabType: 'text' | 'words') => {
+    console.log('Adding explanation immediately for:', newInfo.word, 'in', tabType, 'tab');
     
-    // Update ref immediately
+    if (tabType === 'text') {
+      // Update text explanations
+      textExplanationsRef.current = [...textExplanationsRef.current, newInfo];
+      setTextExplanations([...textExplanationsRef.current]);
+    } else {
+      // Update words explanations
+      wordsExplanationsRef.current = [...wordsExplanationsRef.current, newInfo];
+      setWordsExplanations([...wordsExplanationsRef.current]);
+    }
+    
+    // Update main explanations for backward compatibility
     explanationsRef.current = [...explanationsRef.current, newInfo];
+    setExplanations([...explanationsRef.current]);
     
     // Track explained word names for color changes
     setExplainedWordNames(prev => new Set([...prev, newInfo.word]));
     
     // Force immediate update by using a different state pattern
     const currentTime = Date.now();
-    setExplanations([...explanationsRef.current]);
     setUpdateCounter(currentTime);
     setForceUpdate(currentTime);
     setExplanationKey(currentTime);
@@ -73,6 +87,9 @@ export default function MainApp() {
   const [wordLimitAlert, setWordLimitAlert] = useState<string | null>(null);
   const [showErrorBanner, setShowErrorBanner] = useState(false);
   const [showWordLimitAlert, setShowWordLimitAlert] = useState(false);
+  const [showCropCanvas, setShowCropCanvas] = useState(false);
+  const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textCanvasRef = useRef<HTMLDivElement>(null);
@@ -90,6 +107,15 @@ export default function MainApp() {
     }, 100);
     return () => clearTimeout(timer);
   }, []);
+
+  // Cleanup image URL on unmount
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+      }
+    };
+  }, [imagePreviewUrl]);
 
   const hasData = () => text || selectedWords.length > 0 || explainedWords.length > 0 || manualWords.length > 0 || explanations.length > 0;
 
@@ -152,6 +178,10 @@ export default function MainApp() {
     setManualWords([]);
     setExplanations([]);
     explanationsRef.current = []; // Reset ref
+    setTextExplanations([]);
+    setWordsExplanations([]);
+    textExplanationsRef.current = [];
+    wordsExplanationsRef.current = [];
     setExplainedWordNames(new Set()); // Reset explained word names
     setSearchTerm('');
     setSearchResults([]);
@@ -233,34 +263,25 @@ export default function MainApp() {
     }
   };
 
-  // Tab switching with confirmation dialog and smooth transitions
+  // Tab switching with smooth transitions (no confirmation dialog)
   const handleTabChange = (newTab: TabType) => {
     if (newTab === activeTab || isTransitioning) return;
     
     // Update slider position immediately for smooth sliding effect
     updateSliderPosition(newTab);
     
-    if (hasData()) {
-      setShowConfirmDialog(true);
-      setConfirmAction(() => () => {
-        clearAllData();
-        setActiveTab(newTab);
-        setDisplayedTab(newTab);
-      });
-    } else {
-      // Start transition
-      setIsTransitioning(true);
-      setActiveTab(newTab);
-      
-      // Update displayed tab after a short delay for smooth transition
-      setTimeout(() => {
-        setDisplayedTab(newTab);
-        setIsTransitioning(false);
-      }, 150);
-    }
+    // Start transition
+    setIsTransitioning(true);
+    setActiveTab(newTab);
+    
+    // Update displayed tab after a short delay for smooth transition
+    setTimeout(() => {
+      setDisplayedTab(newTab);
+      setIsTransitioning(false);
+    }, 150);
   };
 
-  // Image upload with validation and API integration
+  // Image upload with validation and text data check
   const handleImageUpload = async (file: File) => {
     // Validate file type
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic'];
@@ -278,11 +299,62 @@ export default function MainApp() {
       return;
     }
 
+    // Check if there's existing text data
+    if (text.trim()) {
+      setDialogType('clearText');
+      setShowConfirmDialog(true);
+      setConfirmAction(() => () => {
+        // Clear text data and proceed with image processing
+        setText('');
+        setSelectedWords([]);
+        setExplanations([]);
+        explanationsRef.current = [];
+        setExplainedWords([]);
+        setExplainedWordNames(new Set());
+        setIsCompleted(false);
+        setIsStreaming(false);
+        setIsExplaining(false);
+        setIsSmartExplaining(false);
+        setSmartExplainPhase('selecting');
+        setManualWords([]);
+        
+        // Store the file and show crop canvas
+        setUploadedImageFile(file);
+        setImagePreviewUrl(URL.createObjectURL(file));
+        setShowCropCanvas(true);
+        setShowConfirmDialog(false);
+        setConfirmAction(null);
+      });
+      return;
+    }
+
+    // If no text data, proceed directly to crop canvas
+    setUploadedImageFile(file);
+    setImagePreviewUrl(URL.createObjectURL(file));
+    setShowCropCanvas(true);
+  };
+
+  // Handle crop canvas cancel
+  const handleCropCancel = () => {
+    setShowCropCanvas(false);
+    setUploadedImageFile(null);
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+      setImagePreviewUrl(null);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Handle crop canvas explain (process image)
+  const handleCropExplain = async () => {
+    if (!uploadedImageFile) return;
+
     setIsLoading(true);
+    setShowCropCanvas(false);
 
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', uploadedImageFile);
 
       const response = await fetch('/api/v1/image-to-text', {
         method: 'POST',
@@ -318,10 +390,15 @@ export default function MainApp() {
     } catch (error) {
       console.error('Error processing image:', error);
       showError('Failed to extract text from image. Please try again.');
-      // Clear uploaded file from memory on error
-      if (fileInputRef.current) fileInputRef.current.value = '';
     } finally {
       setIsLoading(false);
+      // Clean up
+      setUploadedImageFile(null);
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+        setImagePreviewUrl(null);
+      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -361,6 +438,9 @@ export default function MainApp() {
   const handleExplainWords = async () => {
     console.log('handleExplainWords called with selectedWords:', selectedWords);
     console.log('handleExplainWords called with manualWords:', manualWords);
+    
+    // Determine which tab we're in
+    const currentTab = displayedTab;
     
     // For manual words, only explain words that haven't been explained yet
     let wordsToExplain;
@@ -476,17 +556,23 @@ export default function MainApp() {
                 const newInfo = parsed.word_info;
                 console.log('Processing single word explanation for:', newInfo.word);
                 
-                // Check if we already have this word
-                const existingIndex = explanationsRef.current.findIndex(exp => exp.word === newInfo.word);
+                // Check if we already have this word in the current tab's explanations
+                const currentExplanations = currentTab === 'text' ? textExplanationsRef.current : wordsExplanationsRef.current;
+                const existingIndex = currentExplanations.findIndex(exp => exp.word === newInfo.word);
                 
                 if (existingIndex === -1) {
                   // New word, add it immediately using the working function
-                  addExplanationImmediately(newInfo);
+                  addExplanationImmediately(newInfo, currentTab as 'text' | 'words');
                 } else {
                   // Word exists, update it
                   console.log('Updating explanation for:', newInfo.word);
-                  explanationsRef.current[existingIndex] = newInfo;
-                  setExplanations([...explanationsRef.current]);
+                  if (currentTab === 'text') {
+                    textExplanationsRef.current[existingIndex] = newInfo;
+                    setTextExplanations([...textExplanationsRef.current]);
+                  } else {
+                    wordsExplanationsRef.current[existingIndex] = newInfo;
+                    setWordsExplanations([...wordsExplanationsRef.current]);
+                  }
                   setUpdateCounter(prev => prev + 1);
                 }
                 
@@ -510,17 +596,23 @@ export default function MainApp() {
                 parsed.words_info.forEach((newInfo: any, index: number) => {
                   console.log('Processing explanation for:', newInfo.word);
                   
-                  // Check if we already have this word
-                  const existingIndex = explanationsRef.current.findIndex(exp => exp.word === newInfo.word);
+                  // Check if we already have this word in the current tab's explanations
+                  const currentExplanations = currentTab === 'text' ? textExplanationsRef.current : wordsExplanationsRef.current;
+                  const existingIndex = currentExplanations.findIndex(exp => exp.word === newInfo.word);
                   
                   if (existingIndex === -1) {
                     // New word, add it immediately using the working function
-                    addExplanationImmediately(newInfo);
+                    addExplanationImmediately(newInfo, currentTab as 'text' | 'words');
                   } else {
                     // Word exists, update it
                     console.log('Updating explanation for:', newInfo.word);
-                    explanationsRef.current[existingIndex] = newInfo;
-                    setExplanations([...explanationsRef.current]);
+                    if (currentTab === 'text') {
+                      textExplanationsRef.current[existingIndex] = newInfo;
+                      setTextExplanations([...textExplanationsRef.current]);
+                    } else {
+                      wordsExplanationsRef.current[existingIndex] = newInfo;
+                      setWordsExplanations([...wordsExplanationsRef.current]);
+                    }
                     setUpdateCounter(prev => prev + 1);
                   }
                   
@@ -586,6 +678,9 @@ export default function MainApp() {
       showError('Please enter some text first');
       return;
     }
+
+    // Determine which tab we're in
+    const currentTab = displayedTab;
 
     setIsSmartExplaining(true);
     setSmartExplainPhase('selecting');
@@ -687,17 +782,23 @@ export default function MainApp() {
                 const newInfo = parsed.word_info;
                 console.log('Processing single word explanation for:', newInfo.word);
                 
-                // Check if we already have this word
-                const existingIndex = explanationsRef.current.findIndex(exp => exp.word === newInfo.word);
+                // Check if we already have this word in the current tab's explanations
+                const currentExplanations = currentTab === 'text' ? textExplanationsRef.current : wordsExplanationsRef.current;
+                const existingIndex = currentExplanations.findIndex(exp => exp.word === newInfo.word);
                 
                 if (existingIndex === -1) {
                   // New word, add it immediately using the working function
-                  addExplanationImmediately(newInfo);
+                  addExplanationImmediately(newInfo, currentTab as 'text' | 'words');
                 } else {
                   // Word exists, update it
                   console.log('Updating explanation for:', newInfo.word);
-                  explanationsRef.current[existingIndex] = newInfo;
-                  setExplanations([...explanationsRef.current]);
+                  if (currentTab === 'text') {
+                    textExplanationsRef.current[existingIndex] = newInfo;
+                    setTextExplanations([...textExplanationsRef.current]);
+                  } else {
+                    wordsExplanationsRef.current[existingIndex] = newInfo;
+                    setWordsExplanations([...wordsExplanationsRef.current]);
+                  }
                   setUpdateCounter(prev => prev + 1);
                 }
                 
@@ -719,13 +820,19 @@ export default function MainApp() {
                 // Multiple words format from backend
                 console.log('Processing multiple word explanations:', parsed.words_info);
                 parsed.words_info.forEach((wordInfo: any) => {
-                  const existingIndex = explanationsRef.current.findIndex(exp => exp.word === wordInfo.word);
+                  const currentExplanations = currentTab === 'text' ? textExplanationsRef.current : wordsExplanationsRef.current;
+                  const existingIndex = currentExplanations.findIndex(exp => exp.word === wordInfo.word);
                   
                   if (existingIndex === -1) {
-                    addExplanationImmediately(wordInfo);
+                    addExplanationImmediately(wordInfo, currentTab as 'text' | 'words');
                   } else {
-                    explanationsRef.current[existingIndex] = wordInfo;
-                    setExplanations([...explanationsRef.current]);
+                    if (currentTab === 'text') {
+                      textExplanationsRef.current[existingIndex] = wordInfo;
+                      setTextExplanations([...textExplanationsRef.current]);
+                    } else {
+                      wordsExplanationsRef.current[existingIndex] = wordInfo;
+                      setWordsExplanations([...wordsExplanationsRef.current]);
+                    }
                     setUpdateCounter(prev => prev + 1);
                   }
                 });
@@ -772,6 +879,8 @@ export default function MainApp() {
         setSelectedWords([]);
         setExplanations([]);
         explanationsRef.current = [];
+        setTextExplanations([]);
+        textExplanationsRef.current = [];
         setExplainedWords([]);
         setExplainedWordNames(new Set());
         setIsCompleted(false);
@@ -793,6 +902,10 @@ export default function MainApp() {
       setConfirmAction(() => () => {
         setExplanations([]);
         explanationsRef.current = [];
+        setTextExplanations([]);
+        setWordsExplanations([]);
+        textExplanationsRef.current = [];
+        wordsExplanationsRef.current = [];
         setExplainedWords([]);
         setExplainedWordNames(new Set());
         setIsCompleted(false);
@@ -914,7 +1027,28 @@ export default function MainApp() {
 
       const data = await response.json();
       
-      // Append the new examples below existing ones
+      // Determine which tab we're in and update the appropriate explanations
+      const currentTab = displayedTab;
+      
+      if (currentTab === 'text') {
+        // Update text explanations
+        setTextExplanations(prev => prev.map(exp =>
+          exp.word === explanation.word ? { ...exp, examples: data.examples } : exp
+        ));
+        textExplanationsRef.current = textExplanationsRef.current.map(exp =>
+          exp.word === explanation.word ? { ...exp, examples: data.examples } : exp
+        );
+      } else {
+        // Update words explanations
+        setWordsExplanations(prev => prev.map(exp =>
+          exp.word === explanation.word ? { ...exp, examples: data.examples } : exp
+        ));
+        wordsExplanationsRef.current = wordsExplanationsRef.current.map(exp =>
+          exp.word === explanation.word ? { ...exp, examples: data.examples } : exp
+        );
+      }
+      
+      // Also update main explanations for backward compatibility
       setExplanations(prev => prev.map(exp =>
         exp.word === explanation.word ? { ...exp, examples: data.examples } : exp
       ));
@@ -1038,11 +1172,13 @@ export default function MainApp() {
 
   // Sort explanations based on selected option
   const sortedExplanations = React.useMemo(() => {
-    let filtered = explanations;
+    // Get the appropriate explanations based on current tab
+    const currentExplanations = displayedTab === 'text' ? textExplanations : wordsExplanations;
+    let filtered = currentExplanations;
     
     // Filter by search term if searching
     if (explanationSearchTerm) {
-      filtered = explanations.filter(exp => 
+      filtered = currentExplanations.filter(exp => 
         exp.word.toLowerCase().includes(explanationSearchTerm.toLowerCase())
       );
     }
@@ -1054,12 +1190,12 @@ export default function MainApp() {
     } else {
       // Sort by original order (complexity/paragraph order)
       return sorted.sort((a, b) => {
-        const aIndex = explanations.findIndex(exp => exp.word === a.word);
-        const bIndex = explanations.findIndex(exp => exp.word === b.word);
+        const aIndex = currentExplanations.findIndex(exp => exp.word === a.word);
+        const bIndex = currentExplanations.findIndex(exp => exp.word === b.word);
         return aIndex - bIndex;
       });
     }
-  }, [explanations, sortBy, explanationSearchTerm]);
+  }, [textExplanations, wordsExplanations, displayedTab, sortBy, explanationSearchTerm]);
 
   return React.createElement('div', { className: 'min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-25' },
     React.createElement(Header),
@@ -1602,7 +1738,7 @@ export default function MainApp() {
               ),
 
               // Action buttons at the bottom
-              manualWords.length > 0 && React.createElement('div', { className: 'mt-auto' },
+              (manualWords.length > 0 || wordsExplanations.length > 0) && React.createElement('div', { className: 'mt-auto' },
                 // Button row with proper layout: Clear All (left) -> Explain (right)
                 React.createElement('div', { className: 'flex justify-between items-center' },
                   // Left side: Clear all explanations button
@@ -1615,6 +1751,8 @@ export default function MainApp() {
                         setExplainedWordNames(new Set());
                         setExplanations([]);
                         explanationsRef.current = [];
+                        setWordsExplanations([]);
+                        wordsExplanationsRef.current = [];
                         setExplainedWords([]);
                         setIsCompleted(false);
                         setIsStreaming(false);
@@ -1658,41 +1796,15 @@ export default function MainApp() {
         // Right Side - Explanations Card (50%) - Only show for Text and Words tabs
         displayedTab !== 'image' && React.createElement('div', { className: 'w-1/2' },
           React.createElement('div', { className: 'bg-white rounded-2xl shadow-lg shadow-purple-100 p-6 h-full flex flex-col' },
-            // Header - different for each tab
+            // Header
             React.createElement('div', { className: 'bg-purple-500 rounded-lg h-10 flex items-center justify-center mb-4' },
-              React.createElement('h3', { className: 'text-lg font-normal text-white' }, 
-                displayedTab === 'image' ? 'Image Preview' : 'Explanations'
-              )
+              React.createElement('h3', { className: 'text-lg font-normal text-white' }, 'Explanations')
             ),
 
-            // Content based on tab
-            displayedTab === 'image' ? 
-              // Image tab content - empty placeholder
-              React.createElement('div', { className: 'flex-1 flex items-center justify-center' },
-                React.createElement('div', { className: 'text-center py-12 text-gray-500' },
-                  React.createElement('div', { className: 'flex justify-center mb-4' },
-                    React.createElement('svg', { 
-                      className: 'h-12 w-12 text-purple-500', 
-                      fill: 'none', 
-                      stroke: 'currentColor', 
-                      viewBox: '0 0 24 24' 
-                    },
-                      React.createElement('path', { 
-                        strokeLinecap: 'round', 
-                        strokeLinejoin: 'round', 
-                        strokeWidth: 1.5, 
-                        d: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' 
-                      })
-                    )
-                  ),
-                  React.createElement('h3', { className: 'text-lg font-medium text-gray-900 mb-2' }, 'Image Preview'),
-                  React.createElement('p', { className: 'text-sm text-gray-600' }, 'Upload an image to see it here')
-                )
-              ) :
-              // Text/Words tab content - explanations
+            // Text/Words tab content - explanations
               React.createElement(React.Fragment, {},
                 // Search box for explanations (only show when there are explanations)
-                explanations.length > 0 && React.createElement('div', { className: 'mb-4' },
+                sortedExplanations.length > 0 && React.createElement('div', { className: 'mb-4' },
                   React.createElement('input', {
                     type: 'text',
                     placeholder: 'Search word ...',
@@ -1808,9 +1920,7 @@ export default function MainApp() {
                     React.createElement('p', { className: 'text-sm text-gray-600' }, 
                       displayedTab === 'text' 
                         ? 'Paste text and get AI-powered explanations'
-                        : displayedTab === 'words' 
-                        ? 'Enter words and get AI-powered explanations'
-                        : 'Select words and click "Explain" to get AI-powered explanations.'
+                        : 'Enter words and get AI-powered explanations'
                     )
                   )
             ),
@@ -1826,7 +1936,7 @@ export default function MainApp() {
               ),
               
               // Sorting tab group (above COMPLETED) - only show when there are explanations
-              displayedTab !== 'words' && explanations.length > 0 && React.createElement('div', { className: 'mb-4' },
+              displayedTab === 'text' && sortedExplanations.length > 0 && React.createElement('div', { className: 'mb-4' },
                 React.createElement('div', { className: 'inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 p-1 w-full' },
                   React.createElement('button', {
                     onClick: () => setSortBy('complexity'),
@@ -1855,10 +1965,69 @@ export default function MainApp() {
       )
     ),
 
+    // Crop Canvas Modal
+    showCropCanvas && React.createElement('div', { 
+      className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' 
+    },
+      React.createElement('div', { 
+        className: 'bg-white rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden' 
+      },
+        // Header
+        React.createElement('div', { 
+          className: 'flex items-center justify-between p-6 border-b border-gray-200' 
+        },
+          React.createElement('h2', { 
+            className: 'text-xl font-semibold text-gray-900' 
+          }, 'Crop & Rotate Image'),
+          React.createElement('button', {
+            onClick: handleCropCancel,
+            className: 'text-gray-400 hover:text-gray-600 transition-colors'
+          },
+            React.createElement('svg', { className: 'w-6 h-6', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+              React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
+            )
+          )
+        ),
+        
+        // Image Preview Area
+        React.createElement('div', { 
+          className: 'p-6 flex-1 flex items-center justify-center bg-gray-50' 
+        },
+          imagePreviewUrl && React.createElement('div', { 
+            className: 'relative max-w-full max-h-96' 
+          },
+            React.createElement('img', {
+              src: imagePreviewUrl,
+              alt: 'Uploaded image',
+              className: 'max-w-full max-h-96 object-contain rounded-lg shadow-lg'
+            })
+          )
+        ),
+        
+        // Action Buttons
+        React.createElement('div', { 
+          className: 'flex items-center justify-end space-x-4 p-6 border-t border-gray-200' 
+        },
+          React.createElement('button', {
+            onClick: handleCropCancel,
+            className: 'px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors'
+          }, 'Cancel'),
+          React.createElement('button', {
+            onClick: handleCropExplain,
+            disabled: isLoading,
+            className: 'px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2'
+          },
+            isLoading && React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-white' }),
+            React.createElement('span', {}, isLoading ? 'Reading text from image...' : 'Explain')
+          )
+        )
+      )
+    ),
+
     React.createElement(ConfirmDialog, {
       open: showConfirmDialog,
       onOpenChange: setShowConfirmDialog,
-      title: dialogType === 'clearText' ? 'Clear Text?' : 
+      title: dialogType === 'clearText' ? 'You will lose all data in TEXT tab. Are you sure?' : 
              dialogType === 'clearExplanations' ? 'Clear all explanations?' : 
              'Clear existing data?',
       description: dialogType === 'clearText' ? 'All text and explanations will be cleared. Are you sure?' :
