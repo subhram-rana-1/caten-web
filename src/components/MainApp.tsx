@@ -33,6 +33,10 @@ export default function MainApp() {
   const [explanationTrigger, setExplanationTrigger] = useState(0);
   const [explainedWordNames, setExplainedWordNames] = useState<Set<string>>(new Set());
   
+  // Tab-specific explained word names
+  const [textExplainedWordNames, setTextExplainedWordNames] = useState<Set<string>>(new Set());
+  const [wordsExplainedWordNames, setWordsExplainedWordNames] = useState<Set<string>>(new Set());
+  
   // Force immediate explanation update using a different approach
   const addExplanationImmediately = useCallback((newInfo: any, tabType: 'text' | 'words') => {
     console.log('Adding explanation immediately for:', newInfo.word, 'in', tabType, 'tab');
@@ -51,8 +55,12 @@ export default function MainApp() {
     explanationsRef.current = [...explanationsRef.current, newInfo];
     setExplanations([...explanationsRef.current]);
     
-    // Track explained word names for color changes
-    setExplainedWordNames(prev => new Set([...prev, newInfo.word]));
+    // Track explained word names for color changes - tab-specific
+    if (tabType === 'text') {
+      setTextExplainedWordNames(prev => new Set([...prev, newInfo.word]));
+    } else if (tabType === 'words') {
+      setWordsExplainedWordNames(prev => new Set([...prev, newInfo.word]));
+    }
     
     // Force immediate update by using a different state pattern
     const currentTime = Date.now();
@@ -73,6 +81,21 @@ export default function MainApp() {
   const [smartExplainPhase, setSmartExplainPhase] = useState<'idle' | 'selecting' | 'explaining'>('idle');
   const [isCompleted, setIsCompleted] = useState(false);
   const [isPreparingExplanations, setIsPreparingExplanations] = useState(false);
+  
+  // Tab-specific loading states
+  const [textIsExplaining, setTextIsExplaining] = useState(false);
+  const [textIsStreaming, setTextIsStreaming] = useState(false);
+  const [textIsCompleted, setTextIsCompleted] = useState(false);
+  const [textIsPreparingExplanations, setTextIsPreparingExplanations] = useState(false);
+  const [textIsSmartExplaining, setTextIsSmartExplaining] = useState(false);
+  const [textSmartExplainPhase, setTextSmartExplainPhase] = useState<'idle' | 'selecting' | 'explaining'>('idle');
+  
+  const [wordsIsExplaining, setWordsIsExplaining] = useState(false);
+  const [wordsIsStreaming, setWordsIsStreaming] = useState(false);
+  const [wordsIsCompleted, setWordsIsCompleted] = useState(false);
+  const [wordsIsPreparingExplanations, setWordsIsPreparingExplanations] = useState(false);
+  const [wordsIsSmartExplaining, setWordsIsSmartExplaining] = useState(false);
+  const [wordsSmartExplainPhase, setWordsSmartExplainPhase] = useState<'idle' | 'selecting' | 'explaining'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
@@ -117,7 +140,105 @@ export default function MainApp() {
     };
   }, [imagePreviewUrl]);
 
+  // Clipboard paste functionality
+  const handlePaste = useCallback(async (e: ClipboardEvent) => {
+    if (displayedTab !== 'image') return;
+    
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) {
+          await handleImageUpload(file);
+        }
+        break;
+      }
+    }
+  }, [displayedTab]);
+
+  // Add paste event listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && displayedTab === 'image') {
+        // Trigger paste event
+        document.execCommand('paste');
+      }
+    };
+
+    document.addEventListener('paste', handlePaste);
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handlePaste, displayedTab]);
+
   const hasData = () => text || selectedWords.length > 0 || explainedWords.length > 0 || manualWords.length > 0 || explanations.length > 0;
+
+  // Helper function to get current tab's explained word names
+  const getCurrentTabExplainedWordNames = () => {
+    if (displayedTab === 'text') {
+      return textExplainedWordNames;
+    } else if (displayedTab === 'words') {
+      return wordsExplainedWordNames;
+    }
+    return new Set<string>();
+  };
+
+  // Helper functions to get current tab's loading states
+  const getCurrentTabLoadingStates = () => {
+    if (displayedTab === 'text') {
+      return {
+        isExplaining: textIsExplaining,
+        isStreaming: textIsStreaming,
+        isCompleted: textIsCompleted,
+        isPreparingExplanations: textIsPreparingExplanations,
+        isSmartExplaining: textIsSmartExplaining,
+        smartExplainPhase: textSmartExplainPhase,
+        setIsExplaining: setTextIsExplaining,
+        setIsStreaming: setTextIsStreaming,
+        setIsCompleted: setTextIsCompleted,
+        setIsPreparingExplanations: setTextIsPreparingExplanations,
+        setIsSmartExplaining: setTextIsSmartExplaining,
+        setSmartExplainPhase: setTextSmartExplainPhase
+      };
+    } else if (displayedTab === 'words') {
+      return {
+        isExplaining: wordsIsExplaining,
+        isStreaming: wordsIsStreaming,
+        isCompleted: wordsIsCompleted,
+        isPreparingExplanations: wordsIsPreparingExplanations,
+        isSmartExplaining: wordsIsSmartExplaining,
+        smartExplainPhase: wordsSmartExplainPhase,
+        setIsExplaining: setWordsIsExplaining,
+        setIsStreaming: setWordsIsStreaming,
+        setIsCompleted: setWordsIsCompleted,
+        setIsPreparingExplanations: setWordsIsPreparingExplanations,
+        setIsSmartExplaining: setWordsIsSmartExplaining,
+        setSmartExplainPhase: setWordsSmartExplainPhase
+      };
+    }
+    // Default fallback
+    return {
+      isExplaining: false,
+      isStreaming: false,
+      isCompleted: false,
+      isPreparingExplanations: false,
+      isSmartExplaining: false,
+      smartExplainPhase: 'idle' as const,
+      setIsExplaining: () => {},
+      setIsStreaming: () => {},
+      setIsCompleted: () => {},
+      setIsPreparingExplanations: () => {},
+      setIsSmartExplaining: () => {},
+      setSmartExplainPhase: () => {}
+    };
+  };
 
   // Helper function to count words in text
   const countWords = (text: string) => {
@@ -182,7 +303,11 @@ export default function MainApp() {
     setWordsExplanations([]);
     textExplanationsRef.current = [];
     wordsExplanationsRef.current = [];
-    setExplainedWordNames(new Set()); // Reset explained word names
+        setExplainedWordNames(new Set());
+        setTextExplainedWordNames(new Set());
+        setWordsExplainedWordNames(new Set()); // Reset explained word names
+        setTextExplainedWordNames(new Set());
+        setWordsExplainedWordNames(new Set());
     setSearchTerm('');
     setSearchResults([]);
     setIsCompleted(false);
@@ -218,16 +343,16 @@ export default function MainApp() {
       return;
     }
 
-    // Check total word count (explained + to be explained)
-    // Only count words that are actually explained (in explanations array)
-    const totalWords = explanations.length;
+    // Check total word count (explained + to be explained) - Words tab only
+    // Only count words that are actually explained in Words tab
+    const totalWords = wordsExplanations.length;
     if (totalWords >= CONFIG.MAX_TOTAL_WORDS) {
       showError("Total word count can't be more than 20");
       return;
     }
 
     // Check word limit - only check words that are NOT explained yet (purple color)
-    const unexplainedWords = manualWords.filter(word => !explainedWordNames.has(word));
+    const unexplainedWords = manualWords.filter(word => !wordsExplainedWordNames.has(word));
     if (unexplainedWords.length >= CONFIG.MAX_WORDS_AT_ONCE) {
       setWordLimitAlert(`More than ${CONFIG.MAX_WORDS_AT_ONCE} words can't be added at once`);
       
@@ -310,19 +435,21 @@ export default function MainApp() {
         setDialogType('clearText');
         setShowConfirmDialog(true);
         setConfirmAction(() => () => {
-        // Clear text data and proceed with image processing
+        // Clear only text data and proceed with image processing
         setText('');
         setSelectedWords([]);
-        setExplanations([]);
-        explanationsRef.current = [];
+        setTextExplanations([]);
+        textExplanationsRef.current = [];
         setExplainedWords([]);
         setExplainedWordNames(new Set());
+        setTextExplainedWordNames(new Set());
+        setWordsExplainedWordNames(new Set());
         setIsCompleted(false);
         setIsStreaming(false);
         setIsExplaining(false);
         setIsSmartExplaining(false);
         setSmartExplainPhase('selecting');
-        setManualWords([]);
+        // Note: We preserve words tab data (manualWords, wordsExplanations, etc.)
         
           // Store the file and show crop canvas
           setUploadedImageFile(file);
@@ -430,8 +557,16 @@ export default function MainApp() {
       const data = await response.json();
       
       // Highlight each important word using index and length with light purple background
-      setSelectedWords(data.important_words_location || []);
-      toast.success(`Selected ${data.important_words_location?.length || 0} important words`);
+      const importantWords = data.important_words_location || [];
+      
+      // Safety check: limit to 10 words maximum
+      if (importantWords.length > 10) {
+        showError("Smart Select returned more than 10 words. Please try again.");
+        return;
+      }
+      
+      setSelectedWords(importantWords);
+      toast.success(`Selected ${importantWords.length} important words`);
       
     } catch (error) {
       console.error('Error selecting words:', error);
@@ -446,8 +581,9 @@ export default function MainApp() {
     console.log('handleExplainWords called with selectedWords:', selectedWords);
     console.log('handleExplainWords called with manualWords:', manualWords);
     
-    // Determine which tab we're in
+    // Determine which tab we're in and get its loading states
     const currentTab = displayedTab;
+    const loadingStates = getCurrentTabLoadingStates();
     
     // For manual words, only explain words that haven't been explained yet
     let wordsToExplain;
@@ -456,9 +592,10 @@ export default function MainApp() {
       console.log('Using selectedWords for explanation');
       wordsToExplain = selectedWords;
     } else {
-      // Filter out already explained manual words
+      // Filter out already explained manual words - use tab-specific explained word names
+      const currentTabExplainedNames = getCurrentTabExplainedWordNames();
       const unexplainedWords = manualWords.filter(word => 
-        !explainedWords.some(exp => exp.word === word)
+        !currentTabExplainedNames.has(word)
       );
       
       if (unexplainedWords.length === 0) {
@@ -489,10 +626,10 @@ export default function MainApp() {
     const controller = new AbortController();
     setAbortController(controller);
 
-    setIsExplaining(true);
-    setIsStreaming(true);
-    setIsCompleted(false);
-    setIsPreparingExplanations(true);
+    loadingStates.setIsExplaining(true);
+    loadingStates.setIsStreaming(true);
+    loadingStates.setIsCompleted(false);
+    loadingStates.setIsPreparingExplanations(true);
 
     try {
       // Determine the correct text to send to API
@@ -538,12 +675,12 @@ export default function MainApp() {
             
             if (data === '[DONE]') {
               // Show green tick and "COMPLETED" message
-              setIsStreaming(false);
-              setIsCompleted(true);
-              setIsPreparingExplanations(false);
+              loadingStates.setIsStreaming(false);
+              loadingStates.setIsCompleted(true);
+              loadingStates.setIsPreparingExplanations(false);
               // Mark words as explained (change from purple to green background)
               setExplainedWords(prev => [...prev, ...wordsToExplain]);
-              setIsExplaining(false);
+              loadingStates.setIsExplaining(false);
               setSelectedWords([]); // Clear selected words as they are now explained
               setAbortController(null);
               toast.success('All explanations completed!');
@@ -555,7 +692,7 @@ export default function MainApp() {
               console.log('Received SSE data:', parsed); // Debug log
               
               // Clear preparing state when we start receiving data
-              setIsPreparingExplanations(false);
+              loadingStates.setIsPreparingExplanations(false);
               
               // Handle both word_info (singular) and words_info (plural) formats
               if (parsed.word_info) {
@@ -650,18 +787,18 @@ export default function MainApp() {
     } catch (error: any) {
       if (error.name === 'AbortError') {
         // User stopped the stream
-        setIsStreaming(false);
-        setIsCompleted(true);
-        setIsExplaining(false);
-        setIsPreparingExplanations(false);
+        loadingStates.setIsStreaming(false);
+        loadingStates.setIsCompleted(true);
+        loadingStates.setIsExplaining(false);
+        loadingStates.setIsPreparingExplanations(false);
         setAbortController(null);
         toast.info('Explanation stopped by user');
       } else {
         console.error('Error explaining words:', error);
         showError('Failed to generate explanations. Please try again.');
-        setIsExplaining(false);
-        setIsStreaming(false);
-        setIsPreparingExplanations(false);
+        loadingStates.setIsExplaining(false);
+        loadingStates.setIsStreaming(false);
+        loadingStates.setIsPreparingExplanations(false);
         setAbortController(null);
       }
     }
@@ -686,11 +823,12 @@ export default function MainApp() {
       return;
     }
 
-    // Determine which tab we're in
+    // Determine which tab we're in and get its loading states
     const currentTab = displayedTab;
+    const loadingStates = getCurrentTabLoadingStates();
 
-    setIsSmartExplaining(true);
-    setSmartExplainPhase('selecting');
+    loadingStates.setIsSmartExplaining(true);
+    loadingStates.setSmartExplainPhase('selecting');
 
     try {
       console.log('Starting smart explain - calling important words API...');
@@ -712,7 +850,14 @@ export default function MainApp() {
       
       if (importantWords.length === 0) {
         showError('No important words found in the text');
-        setIsSmartExplaining(false);
+        loadingStates.setIsSmartExplaining(false);
+        return;
+      }
+
+      // Safety check: limit to 10 words maximum
+      if (importantWords.length > 10) {
+        showError('Smart Explain found more than 10 words. Please try again.');
+        loadingStates.setIsSmartExplaining(false);
         return;
       }
 
@@ -722,15 +867,15 @@ export default function MainApp() {
 
       // Step 3: Make API call to words explanation endpoint
       console.log('Making API call to words explanation...');
-      setSmartExplainPhase('explaining');
+      loadingStates.setSmartExplainPhase('explaining');
       
       // Create abort controller for stopping the stream
       const controller = new AbortController();
       setAbortController(controller);
 
-      setIsExplaining(true);
-      setIsStreaming(true);
-      setIsCompleted(false);
+      loadingStates.setIsExplaining(true);
+      loadingStates.setIsStreaming(true);
+      loadingStates.setIsCompleted(false);
 
       const explanationResponse = await fetch('/api/v1/words-explanation', {
         method: 'POST',
@@ -766,15 +911,15 @@ export default function MainApp() {
             
             if (data === '[DONE]') {
               // Show green tick and "COMPLETED" message
-              setIsStreaming(false);
-              setIsCompleted(true);
+              loadingStates.setIsStreaming(false);
+              loadingStates.setIsCompleted(true);
               // Mark words as explained (change from purple to green background)
               setExplainedWords(prev => [...prev, ...importantWords]);
-              setIsExplaining(false);
+              loadingStates.setIsExplaining(false);
               setSelectedWords([]); // Clear selected words as they are now explained
               setAbortController(null);
-              setIsSmartExplaining(false);
-              setSmartExplainPhase('idle');
+              loadingStates.setIsSmartExplaining(false);
+              loadingStates.setSmartExplainPhase('idle');
               toast.success('All explanations completed!');
               return;
             }
@@ -853,10 +998,10 @@ export default function MainApp() {
     } catch (error) {
       console.error('Error in smart explain:', error);
       showError('Failed to process text. Please try again.');
-      setIsSmartExplaining(false);
-      setIsExplaining(false);
-      setIsStreaming(false);
-      setSmartExplainPhase('idle');
+      loadingStates.setIsSmartExplaining(false);
+      loadingStates.setIsExplaining(false);
+      loadingStates.setIsStreaming(false);
+      loadingStates.setSmartExplainPhase('idle');
       setAbortController(null);
     }
   };
@@ -890,6 +1035,8 @@ export default function MainApp() {
         textExplanationsRef.current = [];
         setExplainedWords([]);
         setExplainedWordNames(new Set());
+        setTextExplainedWordNames(new Set());
+        setWordsExplainedWordNames(new Set());
         setIsCompleted(false);
         setIsStreaming(false);
         setIsExplaining(false);
@@ -915,10 +1062,52 @@ export default function MainApp() {
         wordsExplanationsRef.current = [];
         setExplainedWords([]);
         setExplainedWordNames(new Set());
+        setTextExplainedWordNames(new Set());
+        setWordsExplainedWordNames(new Set());
         setIsCompleted(false);
         setIsStreaming(false);
         setIsExplaining(false);
         toast.success('All explanations cleared!');
+      });
+    }
+  };
+
+  // Clear Text Tab Explanations Only
+  const handleClearTextExplanations = () => {
+    if (textExplanations.length > 0) {
+      setDialogType('clearExplanations');
+      setShowConfirmDialog(true);
+      setConfirmAction(() => () => {
+        setTextExplanations([]);
+        textExplanationsRef.current = [];
+        setExplainedWords([]);
+        setTextExplainedWordNames(new Set());
+        setTextIsCompleted(false);
+        setTextIsStreaming(false);
+        setTextIsExplaining(false);
+        setTextIsSmartExplaining(false);
+        setTextSmartExplainPhase('idle');
+        toast.success('Text tab explanations cleared!');
+      });
+    }
+  };
+
+  // Clear Words Tab Explanations Only
+  const handleClearWordsExplanations = () => {
+    if (wordsExplanations.length > 0) {
+      setDialogType('clearExplanations');
+      setShowConfirmDialog(true);
+      setConfirmAction(() => () => {
+        setManualWords([]);
+        setWordsExplanations([]);
+        wordsExplanationsRef.current = [];
+        setWordsExplainedWordNames(new Set());
+        setWordsIsCompleted(false);
+        setWordsIsStreaming(false);
+        setWordsIsExplaining(false);
+        setWordsIsSmartExplaining(false);
+        setWordsSmartExplainPhase('idle');
+        toast.success('Words tab explanations cleared!');
       });
     }
   };
@@ -943,9 +1132,15 @@ export default function MainApp() {
         if (isSelected) {
           setSelectedWords(prev => prev.filter(w => w.word !== word));
         } else {
-          // Check total word count before adding
-          // Only count words that are actually explained (in explanations array)
-          const totalWords = explanations.length;
+          // Check selection limit - can't select more than 10 words at once
+          if (selectedWords.length >= 10) {
+            showError("Can't select more than 10 words at once");
+            return;
+          }
+          
+          // Check total word count before adding - Text tab only
+          // Only count words that are actually explained in Text tab
+          const totalWords = textExplanations.length;
           if (totalWords >= CONFIG.MAX_TOTAL_WORDS) {
             showError("Total word count can't be more than 20");
             return;
@@ -1134,9 +1329,9 @@ export default function MainApp() {
       if (!cleanWord) return React.createElement('span', { key: index }, word);
 
       const isSelected = selectedWords.some(w => w.word === cleanWord);
-      const isExplained = explainedWords.some(w => w.word === cleanWord);
+      const isExplained = textExplainedWordNames.has(cleanWord);
       const isManualWord = manualWords.includes(cleanWord);
-      const isManualWordExplained = isManualWord && explanations.some(exp => exp.word === cleanWord);
+      const isManualWordExplained = isManualWord && textExplainedWordNames.has(cleanWord);
       const isSearchMatch = searchTerm && cleanWord.includes(searchTerm.toLowerCase());
 
       let className = '';
@@ -1344,7 +1539,8 @@ export default function MainApp() {
                     React.createElement('h3', { className: 'text-lg font-medium text-gray-900' },
                       isLoading ? 'Processing image...' : 'Drop, Upload or Paste Image containing texts'
                     ),
-                    React.createElement('p', { className: 'text-sm text-gray-600' }, 'Supporting formats: JPG, PNG, JPEG, HEIC')
+                    React.createElement('p', { className: 'text-sm text-gray-600' }, 'Supporting formats: JPG, PNG, JPEG, HEIC'),
+                    React.createElement('p', { className: 'text-xs text-gray-500' }, 'Or use Ctrl+V (Windows) / Cmd+V (Mac) to paste from clipboard')
                   ),
 
                   React.createElement('button', {
@@ -1382,7 +1578,7 @@ export default function MainApp() {
                         placeholder: 'Paste your text here (Dont write manually)...',
                         value: text,
                         onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-                          if (explainedWords.length === 0) {
+                          if (textExplanations.length === 0) {
                             const newText = e.target.value;
                             if (validateWordLimit(newText)) {
                               setText(newText);
@@ -1390,7 +1586,7 @@ export default function MainApp() {
                           }
                         },
                         className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] resize-none overflow-y-auto transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : ''}`,
-                        disabled: explainedWords.length > 0
+                        disabled: textExplanations.length > 0
                       }),
                       // Random paragraph button - only show when text is empty
                       !text.trim() && React.createElement('button', {
@@ -1526,8 +1722,8 @@ export default function MainApp() {
                     'Clear Text'
                   ),
                   
-                  explanations.length > 0 && React.createElement('button', {
-                    onClick: handleClearExplanations,
+                  textExplanations.length > 0 && React.createElement('button', {
+                    onClick: handleClearTextExplanations,
                     className: 'inline-flex items-center justify-center rounded-lg font-medium border border-red-300 text-red-600 hover:bg-red-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
                     React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
@@ -1539,7 +1735,7 @@ export default function MainApp() {
                 
                 // Middle Button Group - Smart Select and Unselect
                 React.createElement('div', { className: 'flex flex-col space-y-3' },
-                  (text.trim() && !isSmartSelecting && explainedWords.length === 0) && React.createElement('button', {
+                  (text.trim() && !isSmartSelecting && (displayedTab === 'text' ? textExplanations.length === 0 : wordsExplanations.length === 0)) && React.createElement('button', {
                     onClick: handleSmartSelectWords,
                     className: 'inline-flex items-center justify-center rounded-lg font-medium border border-primary-300 text-primary-600 hover:bg-primary-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
@@ -1567,7 +1763,7 @@ export default function MainApp() {
                     // When words are selected: vertical layout (stacked)
                     React.createElement('div', { className: 'flex flex-col space-y-2' },
                       // Explain button
-                      !isExplaining && !isSmartExplaining && React.createElement('button', {
+                      !getCurrentTabLoadingStates().isExplaining && !getCurrentTabLoadingStates().isSmartExplaining && React.createElement('button', {
                         onClick: handleExplainWords,
                         className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                       },
@@ -1578,7 +1774,7 @@ export default function MainApp() {
                       ),
                       
                       // Smart explain button
-                      text.trim() && !isSmartExplaining && !isExplaining && explainedWords.length === 0 && React.createElement('button', {
+                      text.trim() && !getCurrentTabLoadingStates().isSmartExplaining && !getCurrentTabLoadingStates().isExplaining && (displayedTab === 'text' ? textExplanations.length === 0 : wordsExplanations.length === 0) && React.createElement('button', {
                         onClick: handleSmartExplain,
                         className: 'inline-flex items-center justify-center rounded-lg font-medium text-white h-8 px-3 text-xs transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg relative overflow-hidden',
                         style: {
@@ -1601,13 +1797,13 @@ export default function MainApp() {
                           React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' }),
                           React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 10V3L4 14h7v7l9-11h-7z' })
                         ),
-                        React.createElement('span', { className: 'relative z-10' }, isSmartExplaining ? 'Smart explaining...' : 'Smart explain')
+                        React.createElement('span', { className: 'relative z-10' }, getCurrentTabLoadingStates().isSmartExplaining ? 'Smart explaining...' : 'Smart explain')
                       )
                     ) :
                     // When no words selected: horizontal layout (side by side)
                     React.createElement('div', { className: 'flex space-x-2' },
                       // Smart explain button
-                      text.trim() && !isSmartExplaining && !isExplaining && explainedWords.length === 0 && React.createElement('button', {
+                      text.trim() && !getCurrentTabLoadingStates().isSmartExplaining && !getCurrentTabLoadingStates().isExplaining && (displayedTab === 'text' ? textExplanations.length === 0 : wordsExplanations.length === 0) && React.createElement('button', {
                         onClick: handleSmartExplain,
                         className: 'inline-flex items-center justify-center rounded-lg font-medium text-white h-8 px-3 text-xs transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg relative overflow-hidden',
                         style: {
@@ -1630,12 +1826,12 @@ export default function MainApp() {
                           React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' }),
                           React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 10V3L4 14h7v7l9-11h-7z' })
                         ),
-                        React.createElement('span', { className: 'relative z-10' }, isSmartExplaining ? 'Smart explaining...' : 'Smart explain')
+                        React.createElement('span', { className: 'relative z-10' }, getCurrentTabLoadingStates().isSmartExplaining ? 'Smart explaining...' : 'Smart explain')
                       )
                     ),
                   
                   // Stop button (only show when streaming) - always horizontal with explain buttons
-                  isStreaming && React.createElement('button', {
+                  getCurrentTabLoadingStates().isStreaming && React.createElement('button', {
                     onClick: handleStopStreaming,
                     className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
@@ -1703,7 +1899,7 @@ export default function MainApp() {
                 manualWords.length > 0 
                   ? React.createElement('div', { className: 'flex flex-wrap gap-2' },
                       manualWords.map(word => {
-                        const isExplained = explainedWordNames.has(word);
+                        const isExplained = wordsExplainedWordNames.has(word);
                         return React.createElement('div', { 
                           key: word, 
                           className: `inline-flex items-center px-3 py-1 rounded-full text-xs font-medium transition-colors duration-200 ${
@@ -1718,6 +1914,20 @@ export default function MainApp() {
                             onClick: (e) => {
                               e.stopPropagation(); // Prevent triggering the word click
                               setManualWords(prev => prev.filter(w => w !== word));
+                              
+                              // If the word was explained, also remove its explanation
+                              if (isExplained) {
+                                setWordsExplanations(prev => prev.filter(exp => exp.word !== word));
+                                wordsExplanationsRef.current = wordsExplanationsRef.current.filter(exp => exp.word !== word);
+                                setWordsExplainedWordNames(prev => {
+                                  const newSet = new Set(prev);
+                                  newSet.delete(word);
+                                  return newSet;
+                                });
+                                toast.success(`Word "${word}" and its explanation removed`);
+                              } else {
+                                toast.success(`Word "${word}" removed`);
+                              }
                             },
                             className: `ml-2 w-4 h-4 rounded-full flex items-center justify-center transition-colors duration-200 ${
                               isExplained 
@@ -1754,23 +1964,7 @@ export default function MainApp() {
                 React.createElement('div', { className: 'flex justify-between items-center' },
                   // Left side: Clear all explanations button
                   React.createElement('button', {
-                    onClick: () => {
-                      setDialogType('clearExplanations');
-                      setShowConfirmDialog(true);
-                      setConfirmAction(() => () => {
-                        setManualWords([]);
-                        setExplainedWordNames(new Set());
-                        setExplanations([]);
-                        explanationsRef.current = [];
-                        setWordsExplanations([]);
-                        wordsExplanationsRef.current = [];
-                        setExplainedWords([]);
-                        setIsCompleted(false);
-                        setIsStreaming(false);
-                        setIsExplaining(false);
-                        toast.success('All words and explanations cleared!');
-                      });
-                    },
+                    onClick: handleClearWordsExplanations,
                     className: 'inline-flex items-center justify-center rounded-lg font-medium border border-red-300 text-red-600 hover:bg-red-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
                     React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
@@ -1783,17 +1977,17 @@ export default function MainApp() {
                   React.createElement('div', { className: 'flex space-x-2' },
                     React.createElement('button', {
                       onClick: handleExplainWords,
-                      disabled: isExplaining || isSmartExplaining || manualWords.every(word => explainedWordNames.has(word)),
+                      disabled: getCurrentTabLoadingStates().isExplaining || getCurrentTabLoadingStates().isSmartExplaining || manualWords.every(word => wordsExplainedWordNames.has(word)),
                       className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
                     },
                       React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                         React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
                       ),
-                      isExplaining && !isSmartExplaining ? 'Explaining...' : `Explain ${manualWords.filter(word => !explainedWordNames.has(word)).length} word${manualWords.filter(word => !explainedWordNames.has(word)).length > 1 ? 's' : ''}`
+                      getCurrentTabLoadingStates().isExplaining && !getCurrentTabLoadingStates().isSmartExplaining ? 'Explaining...' : `Explain ${manualWords.filter(word => !wordsExplainedWordNames.has(word)).length} word${manualWords.filter(word => !wordsExplainedWordNames.has(word)).length > 1 ? 's' : ''}`
                     ),
                     
                     // Stop button for Words tab - shows right next to Explain button when needed
-                    isStreaming && React.createElement('button', {
+                    getCurrentTabLoadingStates().isStreaming && React.createElement('button', {
                       onClick: handleStopStreaming,
                       className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                     }, 'Stop')
@@ -1939,7 +2133,7 @@ export default function MainApp() {
             // Bottom status indicators
             React.createElement('div', { className: 'mt-auto' },
               // Streaming indicator
-              isStreaming && React.createElement('div', { className: 'flex items-center justify-center mb-4' },
+              getCurrentTabLoadingStates().isStreaming && React.createElement('div', { className: 'flex items-center justify-center mb-4' },
                 React.createElement('div', { className: 'flex items-center space-x-2 text-purple-600' },
                   React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500' }),
                   React.createElement('span', { className: 'text-sm' }, 'Generating explanations...')
@@ -1961,7 +2155,7 @@ export default function MainApp() {
               ),
 
               // Completion status
-              isCompleted && React.createElement('div', { className: 'flex items-center justify-center' },
+              getCurrentTabLoadingStates().isCompleted && React.createElement('div', { className: 'flex items-center justify-center' },
                 React.createElement('div', { className: 'flex items-center space-x-2 text-green-600' },
                   React.createElement('svg', { className: 'h-4 w-4', fill: 'currentColor', viewBox: '0 0 20 20' },
                     React.createElement('path', { fillRule: 'evenodd', d: 'M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z', clipRule: 'evenodd' })
@@ -2039,13 +2233,13 @@ export default function MainApp() {
       open: showConfirmDialog,
       onOpenChange: setShowConfirmDialog,
       title: dialogType === 'clearText' ? 'You will lose all data in TEXT tab. Are you sure?' : 
-             dialogType === 'clearExplanations' ? 'Clear all explanations?' : 
+             dialogType === 'clearExplanations' ? (displayedTab === 'text' ? 'Clear Text tab explanations?' : 'Clear Words tab explanations?') : 
              'Clear existing data?',
       description: dialogType === 'clearText' ? '' :
-                  dialogType === 'clearExplanations' ? 'All words and explanations will be cleared. Are you sure?' :
+                  dialogType === 'clearExplanations' ? (displayedTab === 'text' ? 'All explanations in Text tab will be cleared. Are you sure?' : 'All words and explanations in Words tab will be cleared. Are you sure?') :
                   'All existing data will be erased. Do you still want to start fresh?',
       confirmText: dialogType === 'clearText' ? 'Yes, clear text' :
-                  dialogType === 'clearExplanations' ? 'Yes, clear all explanations' :
+                  dialogType === 'clearExplanations' ? (displayedTab === 'text' ? 'Yes, clear text explanations' : 'Yes, clear words explanations') :
                   'Yes, clear all',
       cancelText: 'Cancel',
       variant: 'destructive',
