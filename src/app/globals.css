@@ -17,11 +17,12 @@
   }
 
   body {
-    @apply bg-white text-gray-900 antialiased;
+    @apply bg-white text-gray-900 antialiased m-0 p-0;
     font-feature-settings: "rlig" 1, "calt" 1;
     font-optical-sizing: auto;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-family: 'Inter', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   }
 
   /* Enhanced scrollbar */
@@ -65,6 +66,8 @@
   /* Smooth scrolling */
   html {
     scroll-behavior: smooth;
+    margin: 0;
+    padding: 0;
   }
 
   /* Enhanced word highlighting animations */
@@ -435,6 +438,33 @@
 
   .animate-pulse-slow {
     animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Dynamic wireframe animation for processing */
+  @keyframes wireframe-pulse {
+    0%, 100% {
+      opacity: 0.6;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.1);
+    }
+  }
+
+  .animate-wireframe {
+    animation: wireframe-pulse 1.5s ease-in-out infinite;
+  }
+
+  /* Elegant statement text styling */
+  .statement-text {
+    font-family: 'Inter', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    font-weight: 300;
+    letter-spacing: 0.025em;
+    line-height: 1.6;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   .animate-glow {

@@ -937,6 +937,16 @@ export default function MainApp() {
       setIsCompleted(true);
       setIsExplaining(false);
       setAbortController(null);
+      
+      // Also stop smart explain if it's running
+      const loadingStates = getCurrentTabLoadingStates();
+      if (loadingStates.isSmartExplaining) {
+        loadingStates.setIsSmartExplaining(false);
+        loadingStates.setSmartExplainPhase('idle');
+        loadingStates.setIsStreaming(false);
+        loadingStates.setIsCompleted(false);
+      }
+      
       toast.info('Explanation stopped');
     }
   };
@@ -955,6 +965,10 @@ export default function MainApp() {
     loadingStates.setIsSmartExplaining(true);
     loadingStates.setSmartExplainPhase('selecting');
 
+    // Create abort controller at the beginning for both API calls
+    const controller = new AbortController();
+    setAbortController(controller);
+
     try {
       console.log('Starting smart explain - calling important words API...');
       
@@ -963,6 +977,7 @@ export default function MainApp() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
+        signal: controller.signal,
       });
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -993,12 +1008,8 @@ export default function MainApp() {
       // Step 3: Make API call to words explanation endpoint
       console.log('Making API call to words explanation...');
       loadingStates.setSmartExplainPhase('explaining');
-      
-      // Create abort controller for stopping the stream
-      const controller = new AbortController();
-      setAbortController(controller);
 
-      loadingStates.setIsExplaining(true);
+      // Don't set isExplaining to true here - keep isSmartExplaining true instead
       loadingStates.setIsStreaming(true);
       loadingStates.setIsCompleted(false);
 
@@ -1056,7 +1067,7 @@ export default function MainApp() {
                 });
               }
               
-              loadingStates.setIsExplaining(false);
+              // Keep isSmartExplaining true until the very end
               setSelectedWords([]); // Clear selected words as they are now explained
               setAbortController(null);
               loadingStates.setIsSmartExplaining(false);
@@ -1140,9 +1151,16 @@ export default function MainApp() {
       }
     } catch (error) {
       console.error('Error in smart explain:', error);
-      showError('Failed to process text. Please try again.');
+      
+      // Check if the error is due to abort
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Smart explain was aborted by user');
+        // Don't show error message for user-initiated abort
+      } else {
+        showError('Failed to process text. Please try again.');
+      }
+      
       loadingStates.setIsSmartExplaining(false);
-      loadingStates.setIsExplaining(false);
       loadingStates.setIsStreaming(false);
       loadingStates.setSmartExplainPhase('idle');
       setAbortController(null);
@@ -1591,8 +1609,18 @@ export default function MainApp() {
     }
   }, [textExplanations, wordsExplanations, displayedTab, sortBy, explanationSearchTerm]);
 
-  return React.createElement('div', { className: 'min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-25' },
+  return React.createElement('div', { className: 'min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-25 m-0 p-0' },
     React.createElement(Header),
+    
+    // Influencing statement with colorful brain icon
+    React.createElement('div', { className: 'bg-gradient-to-br from-gray-50 via-white to-purple-25 pt-6 pb-0 px-4' },
+      React.createElement('div', { className: 'max-w-7xl mx-auto text-center' },
+        React.createElement('div', { className: 'flex items-center justify-center space-x-3' },
+          React.createElement('span', { className: 'text-xl md:text-2xl lg:text-3xl text-gray-700 statement-text font-semibold' }, 'Master vocabulary with AI-powered explanations'),
+          React.createElement('div', { className: 'text-2xl md:text-3xl' }, '🧠')
+        )
+      )
+    ),
     
     (error || showErrorBanner) && React.createElement('div', { 
       className: `fixed top-28 right-4 z-50 transition-all duration-300 ease-in-out transform ${
@@ -1754,7 +1782,7 @@ export default function MainApp() {
                 placeholder: 'Search word ...',
                 value: searchTerm,
                 onChange: (e) => setSearchTerm(e.target.value),
-                className: 'w-full h-10 px-4 py-2 border border-purple-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 mb-4'
+                className: 'w-full h-9 px-3 py-2 border border-purple-300 rounded-full text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 mb-4'
               }),
 
               // Text Area with Smart Explain Overlay
@@ -1780,11 +1808,34 @@ export default function MainApp() {
                         className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] resize-none overflow-y-auto transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : ''}`,
                         disabled: textExplanations.length > 0
                       }),
+                      
+                      // Processing overlay for Power Words Pack
+                      isLoading && React.createElement('div', { className: 'absolute inset-0 bg-white bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-10' },
+                        React.createElement('div', { className: 'text-center' },
+                          React.createElement('div', { className: 'mb-4' },
+                            React.createElement('svg', { 
+                              className: 'w-16 h-16 text-purple-500 mx-auto animate-wireframe', 
+                              fill: 'none', 
+                              stroke: 'currentColor', 
+                              strokeWidth: '2',
+                              viewBox: '0 0 24 24' 
+                            },
+                              React.createElement('path', { 
+                                strokeLinecap: 'round', 
+                                strokeLinejoin: 'round', 
+                                d: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a1 1 0 01-1-1V9a1 1 0 011-1h1a2 2 0 100-4H4a1 1 0 01-1-1V4a1 1 0 011-1h3a1 1 0 001-1V4z' 
+                              })
+                            )
+                          ),
+                          React.createElement('p', { className: 'text-purple-600 font-semibold text-base' }, 'Preparing a challenging paragraph for you')
+                        )
+                      ),
+                      
                       // Random paragraph button - only show when text is empty
                       !text.trim() && React.createElement('button', {
                         onClick: handleRandomParagraph,
                         disabled: isLoading,
-                        className: `absolute top-3 right-3 inline-flex items-center justify-center rounded-lg font-medium h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] ${
+                        className: `absolute bottom-3 right-3 inline-flex items-center justify-center rounded-lg font-medium h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] ${
                           isLoading 
                             ? 'bg-purple-400 text-white cursor-not-allowed' 
                             : 'bg-purple-500 text-white hover:bg-purple-600'
@@ -1792,10 +1843,10 @@ export default function MainApp() {
                       },
                         isLoading 
                           ? React.createElement('div', { className: 'animate-spin rounded-full h-3 w-3 border-b border-white mr-1' })
-                          : React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                              React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' })
+                          : React.createElement('svg', { className: 'w-4 h-4 mr-1', fill: 'none', stroke: 'white', strokeWidth: '2', viewBox: '0 0 24 24' },
+                              React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a1 1 0 01-1-1V9a1 1 0 011-1h1a2 2 0 100-4H4a1 1 0 01-1-1V4a1 1 0 011-1h3a1 1 0 001-1V4z' })
                             ),
-                        isLoading ? 'Loading...' : 'Try with random paragraph'
+                        isLoading ? 'Loading...' : 'Power Words Pack'
                       )
                     ),
                 
@@ -1827,26 +1878,26 @@ export default function MainApp() {
                 ),
 
                 // Smart Explain Overlay
-                isSmartExplaining && React.createElement('div', { className: 'text-canvas-overlay' },
+                getCurrentTabLoadingStates().isSmartExplaining && React.createElement('div', { className: 'text-canvas-overlay' },
                   React.createElement('div', { className: 'loading-content' },
                     // Smart selecting phase
-                    smartExplainPhase === 'selecting' && React.createElement(React.Fragment, {},
+                    getCurrentTabLoadingStates().smartExplainPhase === 'selecting' && React.createElement(React.Fragment, {},
                       React.createElement('div', { className: 'loading-icon smart-select-icon' },
                         React.createElement('svg', { 
-                          className: 'w-full h-full text-purple-500', 
+                          className: 'w-full h-full text-purple-500 animate-wireframe', 
                           fill: 'none', 
                           stroke: 'currentColor', 
+                          strokeWidth: '2',
                           viewBox: '0 0 24 24' 
                         },
                           React.createElement('path', { 
                             strokeLinecap: 'round', 
                             strokeLinejoin: 'round', 
-                            strokeWidth: 2, 
                             d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' 
                           })
                         )
                       ),
-                      React.createElement('h3', { className: 'loading-title' }, 'Grabbing the most difficult words for you'),
+                      React.createElement('h3', { className: 'loading-title' }, 'Picking a few difficult words for you'),
                       React.createElement('div', { className: 'pulse-dots' },
                         React.createElement('span', {}, '●'),
                         React.createElement('span', {}, '●'),
@@ -1855,23 +1906,23 @@ export default function MainApp() {
                     ),
                     
                     // Explaining phase
-                    smartExplainPhase === 'explaining' && React.createElement(React.Fragment, {},
+                    getCurrentTabLoadingStates().smartExplainPhase === 'explaining' && React.createElement(React.Fragment, {},
                       React.createElement('div', { className: 'loading-icon explain-icon' },
                         React.createElement('svg', { 
-                          className: 'w-full h-full text-purple-500', 
+                          className: 'w-full h-full text-purple-500 animate-wireframe', 
                           fill: 'none', 
                           stroke: 'currentColor', 
+                          strokeWidth: '2',
                           viewBox: '0 0 24 24' 
                         },
                           React.createElement('path', { 
                             strokeLinecap: 'round', 
                             strokeLinejoin: 'round', 
-                            strokeWidth: 2, 
-                            d: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' 
+                            d: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a1 1 0 01-1-1V9a1 1 0 011-1h1a2 2 0 100-4H4a1 1 0 01-1-1V4a1 1 0 011-1h3a1 1 0 001-1V4z' 
                           })
                         )
                       ),
-                      React.createElement('h3', { className: 'loading-title' }, 'Preparing explanations'),
+                      React.createElement('h3', { className: 'loading-title' }, 'Preparing meanings and explanations'),
                       React.createElement('div', { className: 'pulse-dots' },
                         React.createElement('span', {}, '●'),
                         React.createElement('span', {}, '●'),
@@ -1882,20 +1933,29 @@ export default function MainApp() {
                 ),
                 
                 // Preparing Explanations Overlay
-                isPreparingExplanations && React.createElement('div', { className: 'absolute inset-0 flex items-center justify-center bg-white bg-opacity-60 rounded-lg' },
-                  React.createElement('div', { className: 'text-center space-y-4' },
-                    React.createElement('div', { className: 'flex justify-center' },
-                      React.createElement('div', { className: 'relative' },
-                        React.createElement('div', { className: 'animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500' }),
-                        React.createElement('div', { className: 'absolute inset-0 flex items-center justify-center' },
-                          React.createElement('svg', { className: 'h-6 w-6 text-purple-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                            React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' })
-                          )
-                        )
+                getCurrentTabLoadingStates().isPreparingExplanations && React.createElement('div', { className: 'text-canvas-overlay' },
+                  React.createElement('div', { className: 'loading-content' },
+                    React.createElement('div', { className: 'loading-icon explain-icon' },
+                      React.createElement('svg', { 
+                        className: 'w-full h-full text-purple-500 animate-wireframe', 
+                        fill: 'none', 
+                        stroke: 'currentColor', 
+                        strokeWidth: '2',
+                        viewBox: '0 0 24 24' 
+                      },
+                        React.createElement('path', { 
+                          strokeLinecap: 'round', 
+                          strokeLinejoin: 'round', 
+                          d: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a1 1 0 01-1-1V9a1 1 0 011-1h1a2 2 0 100-4H4a1 1 0 01-1-1V4a1 1 0 011-1h3a1 1 0 001-1V4z' 
+                        })
                       )
                     ),
-                    React.createElement('h3', { className: 'text-lg font-medium text-purple-700' }, 'Preparing explanations'),
-                    // React.createElement('p', { className: 'text-sm text-purple-600' }, 'Smart work happening behind the scenes...')
+                    React.createElement('h3', { className: 'loading-title' }, 'Preparing meanings and explanations'),
+                    React.createElement('div', { className: 'pulse-dots' },
+                      React.createElement('span', {}, '●'),
+                      React.createElement('span', {}, '●'),
+                      React.createElement('span', {}, '●')
+                    )
                   )
                 )
               ),
@@ -2022,8 +2082,8 @@ export default function MainApp() {
                       )
                     ),
                   
-                  // Stop button (only show when streaming) - always horizontal with explain buttons
-                  getCurrentTabLoadingStates().isStreaming && React.createElement('button', {
+                  // Stop button (show when streaming or smart explaining) - always horizontal with explain buttons
+                  (getCurrentTabLoadingStates().isStreaming || getCurrentTabLoadingStates().isSmartExplaining) && React.createElement('button', {
                     onClick: handleStopStreaming,
                     className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
@@ -2086,8 +2146,9 @@ export default function MainApp() {
                 }, 'Add')
               ),
               
-              // Word display area with scroll - takes up remaining space
-              React.createElement('div', { className: 'flex-1 overflow-y-auto mb-4' },
+              // Word display area with scroll - takes up remaining space (with relative positioning for overlay)
+              React.createElement('div', { className: 'flex-1 overflow-y-auto mb-4 relative' },
+                // Word content
                 manualWords.length > 0 
                   ? React.createElement('div', { className: 'flex flex-wrap gap-2' },
                       manualWords.map(word => {
@@ -2141,7 +2202,34 @@ export default function MainApp() {
                         )
                       ),
                       React.createElement('p', {}, 'No words added yet')
+                    ),
+
+                // Preparing Explanations Overlay for Words Tab - only covers the word display area
+                getCurrentTabLoadingStates().isPreparingExplanations && React.createElement('div', { className: 'text-canvas-overlay' },
+                  React.createElement('div', { className: 'loading-content' },
+                    React.createElement('div', { className: 'loading-icon explain-icon' },
+                      React.createElement('svg', { 
+                        className: 'w-full h-full text-purple-500 animate-wireframe', 
+                        fill: 'none', 
+                        stroke: 'currentColor', 
+                        strokeWidth: '2',
+                        viewBox: '0 0 24 24' 
+                      },
+                        React.createElement('path', { 
+                          strokeLinecap: 'round', 
+                          strokeLinejoin: 'round', 
+                          d: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a1 1 0 01-1-1V9a1 1 0 011-1h1a2 2 0 100-4H4a1 1 0 01-1-1V4a1 1 0 011-1h3a1 1 0 001-1V4z' 
+                        })
+                      )
+                    ),
+                    React.createElement('h3', { className: 'loading-title' }, 'Preparing meanings and explanations'),
+                    React.createElement('div', { className: 'pulse-dots' },
+                      React.createElement('span', {}, '●'),
+                      React.createElement('span', {}, '●'),
+                      React.createElement('span', {}, '●')
                     )
+                  )
+                )
               ),
 
               // Action buttons at the bottom
@@ -2173,7 +2261,7 @@ export default function MainApp() {
                     ),
                     
                     // Stop button for Words tab - shows right next to Explain button when needed
-                    getCurrentTabLoadingStates().isStreaming && React.createElement('button', {
+                    (getCurrentTabLoadingStates().isStreaming || getCurrentTabLoadingStates().isSmartExplaining) && React.createElement('button', {
                       onClick: handleStopStreaming,
                       className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                     }, 'Stop')
@@ -2188,7 +2276,7 @@ export default function MainApp() {
         displayedTab !== 'image' && React.createElement('div', { className: 'w-1/2' },
           React.createElement('div', { className: 'bg-white rounded-2xl shadow-lg shadow-purple-100 p-6 h-full flex flex-col' },
             // Header
-            React.createElement('div', { className: 'bg-purple-500 rounded-lg h-10 flex items-center justify-center mb-4' },
+            React.createElement('div', { className: 'bg-purple-500 rounded-lg h-10 flex items-center justify-center mb-6' },
               React.createElement('h3', { className: 'text-lg font-normal text-white' }, 'Explanations')
             ),
 
@@ -2203,6 +2291,20 @@ export default function MainApp() {
                     onChange: (e) => setExplanationSearchTerm(e.target.value),
                     className: 'w-full h-9 px-3 py-2 border border-purple-300 rounded-full text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200'
                   })
+                ),
+
+                // Sorting tab group (below search bar) - show for both Text and Words tabs
+                sortedExplanations.length > 0 && React.createElement('div', { className: 'mb-4' },
+                  React.createElement('div', { className: 'inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 p-1 w-full' },
+                    React.createElement('button', {
+                      onClick: () => setSortBy('complexity'),
+                      className: `flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-2 text-xs font-medium transition-all duration-200 ${sortBy === 'complexity' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-600 hover:text-purple-700'}`
+                    }, 'Original order'),
+                    React.createElement('button', {
+                      onClick: () => setSortBy('alphabetical'),
+                      className: `flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-2 text-xs font-medium transition-all duration-200 ${sortBy === 'alphabetical' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-600 hover:text-purple-700'}`
+                    }, 'Alphabetical order')
+                  )
                 ),
 
 
@@ -2329,11 +2431,11 @@ export default function MainApp() {
                       )
                     ),
                     React.createElement('h3', { className: 'text-lg font-medium text-gray-900 mb-2' }, 'No explanations yet'),
-                    React.createElement('p', { className: 'text-sm text-gray-600' }, 
-                      displayedTab === 'text' 
-                        ? 'Paste text and get AI-powered explanations'
-                        : 'Enter words and get AI-powered explanations'
-                    )
+                    // React.createElement('p', { className: 'text-sm text-gray-600' }, 
+                    //   displayedTab === 'text' 
+                    //     ? 'Paste text and get AI-powered explanations'
+                    //     : 'Enter words and get AI-powered explanations'
+                    // )
                   )
             ),
 
@@ -2347,22 +2449,9 @@ export default function MainApp() {
                 )
               ),
               
-              // Sorting tab group (above COMPLETED) - only show when there are explanations
-              displayedTab === 'text' && sortedExplanations.length > 0 && React.createElement('div', { className: 'mb-4' },
-                React.createElement('div', { className: 'inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 p-1 w-full' },
-                  React.createElement('button', {
-                    onClick: () => setSortBy('complexity'),
-                    className: `flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-2 text-xs font-medium transition-all duration-200 ${sortBy === 'complexity' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-600 hover:text-purple-700'}`
-                  }, 'Original order'),
-                  React.createElement('button', {
-                    onClick: () => setSortBy('alphabetical'),
-                    className: `flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-2 text-xs font-medium transition-all duration-200 ${sortBy === 'alphabetical' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-600 hover:text-purple-700'}`
-                  }, 'Alphabetical order')
-                )
-              ),
 
               // Completion status
-              getCurrentTabLoadingStates().isCompleted && React.createElement('div', { className: 'flex items-center justify-center' },
+              getCurrentTabLoadingStates().isCompleted && React.createElement('div', { className: 'flex items-center justify-center mt-4 mb-1' },
                 React.createElement('div', { className: 'flex items-center space-x-2 text-green-600' },
                   React.createElement('svg', { className: 'h-4 w-4', fill: 'currentColor', viewBox: '0 0 20 20' },
                     React.createElement('path', { fillRule: 'evenodd', d: 'M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z', clipRule: 'evenodd' })
