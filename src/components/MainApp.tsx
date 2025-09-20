@@ -559,6 +559,13 @@ export default function MainApp() {
         textExplanationsRef.current = [];
         setExplainedWords([]);
         setTextExplainedWordNames(new Set());
+        // Reset text tab completion states
+        setTextIsCompleted(false);
+        setTextIsStreaming(false);
+        setTextIsExplaining(false);
+        setTextIsSmartExplaining(false);
+        setTextSmartExplainPhase('idle');
+        // Reset global completion states
         setIsCompleted(false);
         setIsStreaming(false);
         setIsExplaining(false);
