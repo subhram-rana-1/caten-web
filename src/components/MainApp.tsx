@@ -37,18 +37,30 @@ export default function MainApp() {
   const [textExplainedWordNames, setTextExplainedWordNames] = useState<Set<string>>(new Set());
   const [wordsExplainedWordNames, setWordsExplainedWordNames] = useState<Set<string>>(new Set());
   
+  // Efficient word-to-index mappings for O(1) lookups
+  const [textWordToIndexMap, setTextWordToIndexMap] = useState<Map<string, number>>(new Map());
+  const [wordsWordToIndexMap, setWordsWordToIndexMap] = useState<Map<string, number>>(new Map());
+  
   // Force immediate explanation update using a different approach
   const addExplanationImmediately = useCallback((newInfo: any, tabType: 'text' | 'words') => {
     console.log('Adding explanation immediately for:', newInfo.word, 'in', tabType, 'tab');
     
     if (tabType === 'text') {
       // Update text explanations
+      const newIndex = textExplanationsRef.current.length;
       textExplanationsRef.current = [...textExplanationsRef.current, newInfo];
       setTextExplanations([...textExplanationsRef.current]);
+      
+      // Update word-to-index mapping
+      setTextWordToIndexMap(prev => new Map(prev).set(newInfo.word, newIndex));
     } else {
       // Update words explanations
+      const newIndex = wordsExplanationsRef.current.length;
       wordsExplanationsRef.current = [...wordsExplanationsRef.current, newInfo];
       setWordsExplanations([...wordsExplanationsRef.current]);
+      
+      // Update word-to-index mapping
+      setWordsWordToIndexMap(prev => new Map(prev).set(newInfo.word, newIndex));
     }
     
     // Update main explanations for backward compatibility
@@ -190,6 +202,98 @@ export default function MainApp() {
     return new Set<string>();
   };
 
+  // Helper function to get current tab's word-to-index map
+  const getCurrentTabWordToIndexMap = () => {
+    if (displayedTab === 'text') {
+      return textWordToIndexMap;
+    } else if (displayedTab === 'words') {
+      return wordsWordToIndexMap;
+    }
+    return new Map<string, number>();
+  };
+
+  // Helper function to get current tab's explanations
+  const getCurrentTabExplanations = () => {
+    if (displayedTab === 'text') {
+      return textExplanations;
+    } else if (displayedTab === 'words') {
+      return wordsExplanations;
+    }
+    return [];
+  };
+
+  // Efficient word deletion helper - removes from both array and map
+  const deleteWordEfficiently = (word: string, tabType: 'text' | 'words') => {
+    if (tabType === 'text') {
+      // Find the index of the word to delete (case-insensitive)
+      let wordIndex = textWordToIndexMap.get(word);
+      let actualWord = word;
+      
+      // If exact match not found, try case-insensitive lookup
+      if (wordIndex === undefined) {
+        for (const [mapWord, index] of textWordToIndexMap.entries()) {
+          if (mapWord.toLowerCase() === word.toLowerCase()) {
+            wordIndex = index;
+            actualWord = mapWord; // Use the actual word from the map
+            break;
+          }
+        }
+      }
+      
+      if (wordIndex !== undefined) {
+        // Remove from explanations array
+        const newExplanations = textExplanations.filter(exp => exp.word !== actualWord);
+        setTextExplanations(newExplanations);
+        textExplanationsRef.current = newExplanations;
+        
+        // Remove from selectedWords to remove green highlighting (case-insensitive)
+        setSelectedWords(prev => prev.filter(sw => sw.word.toLowerCase() !== word.toLowerCase()));
+        
+        // Rebuild word-to-index map (since indices will shift)
+        const newMap = new Map<string, number>();
+        newExplanations.forEach((exp, index) => {
+          newMap.set(exp.word, index);
+        });
+        setTextWordToIndexMap(newMap);
+        
+        // Update explained word names (case-insensitive)
+        setTextExplainedWordNames(prev => {
+          const newSet = new Set(prev);
+          // Remove all case variations of the word
+          for (const explainedWord of prev) {
+            if (explainedWord.toLowerCase() === word.toLowerCase()) {
+              newSet.delete(explainedWord);
+            }
+          }
+          return newSet;
+        });
+      }
+    } else {
+      // Find the index of the word to delete
+      const wordIndex = wordsWordToIndexMap.get(word);
+      if (wordIndex !== undefined) {
+        // Remove from array
+        const newExplanations = wordsExplanations.filter(exp => exp.word !== word);
+        setWordsExplanations(newExplanations);
+        wordsExplanationsRef.current = newExplanations;
+        
+        // Rebuild word-to-index map (since indices will shift)
+        const newMap = new Map<string, number>();
+        newExplanations.forEach((exp, index) => {
+          newMap.set(exp.word, index);
+        });
+        setWordsWordToIndexMap(newMap);
+        
+        // Update explained word names
+        setWordsExplainedWordNames(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(word);
+          return newSet;
+        });
+      }
+    }
+  };
+
   // Helper functions to get current tab's loading states
   const getCurrentTabLoadingStates = () => {
     if (displayedTab === 'text') {
@@ -303,11 +407,12 @@ export default function MainApp() {
     setWordsExplanations([]);
     textExplanationsRef.current = [];
     wordsExplanationsRef.current = [];
-        setExplainedWordNames(new Set());
-        setTextExplainedWordNames(new Set());
-        setWordsExplainedWordNames(new Set()); // Reset explained word names
-        setTextExplainedWordNames(new Set());
-        setWordsExplainedWordNames(new Set());
+    setExplainedWordNames(new Set());
+    setTextExplainedWordNames(new Set());
+    setWordsExplainedWordNames(new Set());
+    // Clear word-to-index mappings
+    setTextWordToIndexMap(new Map());
+    setWordsWordToIndexMap(new Map());
     setSearchTerm('');
     setSearchResults([]);
     setIsCompleted(false);
@@ -1114,8 +1219,9 @@ export default function MainApp() {
       setConfirmAction(() => () => {
         setTextExplanations([]);
         textExplanationsRef.current = [];
-        // Note: Don't clear setExplainedWords as it's shared - only clear text-specific data
         setTextExplainedWordNames(new Set());
+        // Clear word-to-index mapping
+        setTextWordToIndexMap(new Map());
         setTextIsCompleted(false);
         setTextIsStreaming(false);
         setTextIsExplaining(false);
@@ -1136,6 +1242,8 @@ export default function MainApp() {
         setWordsExplanations([]);
         wordsExplanationsRef.current = [];
         setWordsExplainedWordNames(new Set());
+        // Clear word-to-index mapping
+        setWordsWordToIndexMap(new Map());
         setWordsIsCompleted(false);
         setWordsIsStreaming(false);
         setWordsIsExplaining(false);
@@ -1166,6 +1274,12 @@ export default function MainApp() {
         if (isSelected) {
           setSelectedWords(prev => prev.filter(w => w.word !== word));
         } else {
+          // Check if word is already explained
+          if (textExplainedWordNames.has(word)) {
+            showError("This word has already been explained");
+            return;
+          }
+          
           // Check selection limit - can't select more than 10 words at once
           if (selectedWords.length >= 10) {
             showError("Can't select more than 10 words at once");
@@ -1199,17 +1313,41 @@ export default function MainApp() {
     });
   };
 
-  // Handle clicking on explained words - scroll to explanation and expand
+  // Handle clicking on explained words - scroll to explanation and expand (O(1) lookup)
   const handleExplainedWordClick = (word: string) => {
-    console.log('=== WORD CLICK DEBUG ===');
+    console.log('=== EFFICIENT WORD CLICK DEBUG ===');
     console.log('Clicked on word:', word);
-    console.log('Word length:', word.length);
-    console.log('Word char codes:', word.split('').map(c => c.charCodeAt(0)));
-    console.log('Word type:', typeof word);
     
-    // First, expand the card for this word (and collapse others to avoid multiple expanded cards)
-    // We'll set this after finding the target card to use the correct case
-
+    // Get current tab's data
+    const currentExplanations = getCurrentTabExplanations();
+    const wordToIndexMap = getCurrentTabWordToIndexMap();
+    
+    // O(1) lookup for exact word match
+    let targetIndex = wordToIndexMap.get(word);
+    let targetWord = word;
+    
+    // If exact match not found, try case-insensitive lookup
+    if (targetIndex === undefined) {
+      for (const [mapWord, index] of wordToIndexMap.entries()) {
+        if (mapWord.toLowerCase() === word.toLowerCase()) {
+          targetIndex = index;
+          targetWord = mapWord; // Use the correct case from the map
+          break;
+        }
+      }
+    }
+    
+    console.log('Target index:', targetIndex);
+    console.log('Target word:', targetWord);
+    
+    if (targetIndex === undefined || targetIndex >= currentExplanations.length) {
+      console.log('❌ Word not found in explanations');
+      return;
+    }
+    
+    // Expand the card using the correct case
+    setExpandedCards(new Set([targetWord]));
+    
     // Scroll to explanation section
     if (explanationSectionRef.current) {
       explanationSectionRef.current.scrollIntoView({ 
@@ -1220,118 +1358,21 @@ export default function MainApp() {
       // After a short delay, scroll within the explanation container to bring the specific word to top
       setTimeout(() => {
         if (explanationSectionRef.current) {
-          // Find the specific explanation card for this word
+          // Find the specific explanation card by index (O(1) access)
           const explanationCards = explanationSectionRef.current.querySelectorAll('[data-word]');
-          console.log('Found explanation cards:', Array.from(explanationCards).map(card => card.getAttribute('data-word')));
+          const targetCard = explanationCards[targetIndex] as HTMLElement;
           
-          // More robust word matching
-          const targetCard = Array.from(explanationCards).find(card => {
-            const cardWord = card.getAttribute('data-word');
-            console.log(`=== COMPARING ===`);
-            console.log(`Click word: "${word}" (length: ${word.length})`);
-            console.log(`Card word: "${cardWord}" (length: ${cardWord?.length})`);
-            
-            if (!cardWord) {
-              console.log('Card word is null/undefined');
-              return false;
-            }
-            
-            // Try case-insensitive match first (most common issue)
-            if (cardWord.toLowerCase() === word.toLowerCase()) {
-              console.log('✅ Case-insensitive match found');
-              return true;
-            }
-            
-            // Try original exact match
-            if (cardWord === word) {
-              console.log('✅ Exact match found');
-              return true;
-            }
-            
-            // Normalize both words for comparison
-            const normalizeWord = (w: string) => w.toLowerCase().trim().replace(/[.,!?;:]/g, '');
-            const normalizedClickWord = normalizeWord(word);
-            const normalizedCardWord = normalizeWord(cardWord);
-            
-            console.log(`Normalized click: "${normalizedClickWord}" (length: ${normalizedClickWord.length})`);
-            console.log(`Normalized card: "${normalizedCardWord}" (length: ${normalizedCardWord.length})`);
-            
-            // Try exact normalized match
-            if (normalizedCardWord === normalizedClickWord) {
-              console.log('✅ Normalized exact match found');
-              return true;
-            }
-            
-            console.log('❌ No match found');
-            return false;
-          }) as HTMLElement;
-
-          // If no target card found, try a more aggressive search
-          let finalTargetCard = targetCard;
-          if (!targetCard) {
-            console.log('=== FALLBACK SEARCH ===');
-            const fallbackCard = Array.from(explanationCards).find(card => {
-              const cardWord = card.getAttribute('data-word');
-              if (!cardWord) return false;
-              
-              // Try very aggressive normalization
-              const aggressiveNormalize = (w: string) => w.toLowerCase().trim().replace(/[^a-z]/g, '');
-              const aggressiveClickWord = aggressiveNormalize(word);
-              const aggressiveCardWord = aggressiveNormalize(cardWord);
-              
-              console.log(`Aggressive normalized click: "${aggressiveClickWord}"`);
-              console.log(`Aggressive normalized card: "${aggressiveCardWord}"`);
-              
-              if (aggressiveCardWord === aggressiveClickWord) {
-                console.log('✅ Aggressive match found');
-                return true;
-              }
-              
-              // Try substring matching
-              if (cardWord.toLowerCase().includes(word.toLowerCase()) || word.toLowerCase().includes(cardWord.toLowerCase())) {
-                console.log('✅ Substring match found');
-                return true;
-              }
-              
-              return false;
-            }) as HTMLElement;
-            
-            if (fallbackCard) {
-              console.log('✅ Fallback card found');
-              finalTargetCard = fallbackCard;
-            }
-          }
-
-          console.log('Final target card found:', !!finalTargetCard);
-          if (finalTargetCard) {
-            console.log('Scrolling to target card');
-            console.log('Target card element:', finalTargetCard);
-            const cardWord = finalTargetCard.getAttribute('data-word');
-            console.log('Target card data-word:', cardWord);
-            
-            // Expand the card using the correct case from the card's data-word attribute
-            if (cardWord) {
-              console.log('Expanding card for word:', cardWord);
-              setExpandedCards(new Set([cardWord]));
-            }
+          if (targetCard) {
+            console.log('✅ Target card found at index:', targetIndex);
+            console.log('Target card data-word:', targetCard.getAttribute('data-word'));
             
             // Get the explanation container's scroll position
             const container = explanationSectionRef.current;
-            if (!container) {
-              console.log('❌ Container is null!');
-              return;
-            }
-            
-            console.log('Container found:', container);
             const containerRect = container.getBoundingClientRect();
-            const targetRect = finalTargetCard.getBoundingClientRect();
-            
-            console.log('Container rect:', containerRect);
-            console.log('Target rect:', targetRect);
+            const targetRect = targetCard.getBoundingClientRect();
             
             // Calculate the scroll position needed to bring the card to the top
             const scrollTop = container.scrollTop + (targetRect.top - containerRect.top);
-            console.log('Calculated scrollTop:', scrollTop);
             
             // Smooth scroll within the explanation container
             container.scrollTo({
@@ -1339,15 +1380,26 @@ export default function MainApp() {
               behavior: 'smooth'
             });
             
-            console.log('Scroll command executed');
+            console.log('✅ Scroll command executed');
           } else {
-            console.log('No target card found for word:', word);
+            console.log('❌ Target card not found at index:', targetIndex);
           }
         }
-      }, 500); // Increased delay for better reliability
+      }, 300); // Reduced delay since we have direct access
     } else {
-      console.log('explanationSectionRef.current is null');
+      console.log('❌ explanationSectionRef.current is null');
     }
+  };
+
+  // Handle clicking on explained words in Text tab - provides unselect functionality
+  const handleTextExplainedWordClick = (word: string) => {
+    // First, scroll to the explanation (same as handleExplainedWordClick)
+    handleExplainedWordClick(word);
+    
+    // Then, provide unselect functionality by removing from selectedWords
+    // This will remove the green highlighting
+    setSelectedWords(prev => prev.filter(w => w.word !== word));
+    toast.success(`Word "${word}" unselected`);
   };
 
   // Get more explanations with loading state
@@ -1491,7 +1543,7 @@ export default function MainApp() {
           { 
             key: index, 
             className,
-            onClick: (isExplained || isManualWordExplained) ? () => handleExplainedWordClick(cleanWord) : undefined
+            onClick: (isExplained || isManualWordExplained) ? () => handleTextExplainedWordClick(cleanWord) : undefined
           },
           word,
           isSelected && !isExplained && React.createElement('button', 
@@ -2050,31 +2102,25 @@ export default function MainApp() {
                           onClick: isExplained ? () => handleExplainedWordClick(word) : undefined
                         },
                           word,
-                          React.createElement('button', {
+                          // Only show delete button for unselected words (not explained words)
+                          !isExplained && React.createElement('button', {
                             onClick: (e) => {
                               e.stopPropagation(); // Prevent triggering the word click
                               setManualWords(prev => prev.filter(w => w !== word));
-                              
-                              // If the word was explained, also remove its explanation
-                              if (isExplained) {
-                                setWordsExplanations(prev => prev.filter(exp => exp.word !== word));
-                                wordsExplanationsRef.current = wordsExplanationsRef.current.filter(exp => exp.word !== word);
-                                setWordsExplainedWordNames(prev => {
-                                  const newSet = new Set(prev);
-                                  newSet.delete(word);
-                                  return newSet;
-                                });
-                                toast.success(`Word "${word}" and its explanation removed`);
-                              } else {
-                                toast.success(`Word "${word}" removed`);
-                              }
+                              toast.success(`Word "${word}" removed`);
                             },
-                            className: `ml-2 w-4 h-4 rounded-full flex items-center justify-center transition-colors duration-200 ${
-                              isExplained 
-                                ? 'hover:bg-green-300' 
-                                : 'hover:bg-purple-200'
-                            }`
-                          }, '×')
+                            className: 'w-5 h-5 rounded-full flex items-center justify-center transition-colors duration-200 ml-1 mr-2 hover:bg-purple-200'
+                          },
+                            React.createElement('svg', {
+                              className: 'w-4 h-4',
+                              fill: '#8b5cf6',
+                              viewBox: '0 0 24 24'
+                            },
+                              React.createElement('path', {
+                                d: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z'
+                              })
+                            )
+                          )
                         );
                       })
                     )
@@ -2185,12 +2231,33 @@ export default function MainApp() {
                         onClick: () => toggleCardExpansion(explanation.word)
                       },
                         React.createElement('div', { className: 'flex items-center justify-between' },
-                          React.createElement('div', { className: 'flex items-center space-x-2' },
+                          React.createElement('div', { className: 'flex items-center space-x-3' },
+                            // Delete button - positioned left of word label
+                            React.createElement('button', {
+                              onClick: (e) => {
+                                e.stopPropagation(); // Prevent triggering the card expansion
+                                deleteWordEfficiently(explanation.word, 'text');
+                                toast.success(`Word "${explanation.word}" and its explanation removed`);
+                              },
+                              className: 'w-5 h-5 rounded-full flex items-center justify-center transition-colors duration-200 hover:bg-red-100 ml-1 mr-2'
+                            },
+                              React.createElement('svg', {
+                                className: 'w-4 h-4',
+                                fill: '#dc2626',
+                                viewBox: '0 0 24 24'
+                              },
+                                React.createElement('path', {
+                                  d: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z'
+                                })
+                              )
+                            ),
+                            // Word label
                             React.createElement('span', {
                               className: 'font-medium text-purple-700'
                             }, explanation.word)
                           ),
                           React.createElement('div', { className: 'flex items-center space-x-2' },
+                            // Expand/collapse arrow
                             React.createElement('span', { className: 'text-xs text-purple-600' },
                               React.createElement('svg', { 
                                 className: `h-4 w-4 transition-all duration-300 ease-in-out transform ${isExpanded ? 'rotate-180 scale-110' : 'rotate-0 scale-100'}`, 
