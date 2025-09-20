@@ -1027,22 +1027,18 @@ export default function MainApp() {
       setDialogType('clearText');
       setShowConfirmDialog(true);
       setConfirmAction(() => () => {
+        // Only clear Text tab data
         setText('');
         setSelectedWords([]);
-        setExplanations([]);
-        explanationsRef.current = [];
         setTextExplanations([]);
         textExplanationsRef.current = [];
-        setExplainedWords([]);
-        setExplainedWordNames(new Set());
         setTextExplainedWordNames(new Set());
-        setWordsExplainedWordNames(new Set());
-        setIsCompleted(false);
-        setIsStreaming(false);
-        setIsExplaining(false);
-        setIsSmartExplaining(false);
-        setSmartExplainPhase('selecting');
-        setManualWords([]);
+        setTextIsCompleted(false);
+        setTextIsStreaming(false);
+        setTextIsExplaining(false);
+        setTextIsSmartExplaining(false);
+        setTextSmartExplainPhase('idle');
+        // Note: Don't clear manualWords, wordsExplanations, or wordsExplainedWordNames as they belong to Words tab
         toast.success('Text and all explanations cleared!');
       });
     }
@@ -1080,7 +1076,7 @@ export default function MainApp() {
       setConfirmAction(() => () => {
         setTextExplanations([]);
         textExplanationsRef.current = [];
-        setExplainedWords([]);
+        // Note: Don't clear setExplainedWords as it's shared - only clear text-specific data
         setTextExplainedWordNames(new Set());
         setTextIsCompleted(false);
         setTextIsStreaming(false);
