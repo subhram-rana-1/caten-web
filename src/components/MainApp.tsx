@@ -403,6 +403,8 @@ export default function MainApp() {
     setTimeout(() => {
       setDisplayedTab(newTab);
       setIsTransitioning(false);
+      // Clear expanded cards when switching tabs
+      setExpandedCards(new Set());
     }, 150);
   };
 
@@ -680,9 +682,27 @@ export default function MainApp() {
               loadingStates.setIsPreparingExplanations(false);
               // Mark words as explained (change from purple to green background)
               setExplainedWords(prev => [...prev, ...wordsToExplain]);
+              
+              // Update tab-specific explained word names for highlighting
+              if (currentTab === 'text') {
+                setTextExplainedWordNames(prev => {
+                  const newSet = new Set(prev);
+                  wordsToExplain.forEach((word: any) => newSet.add(word.word));
+                  return newSet;
+                });
+              } else if (currentTab === 'words') {
+                setWordsExplainedWordNames(prev => {
+                  const newSet = new Set(prev);
+                  wordsToExplain.forEach((word: any) => newSet.add(word.word));
+                  return newSet;
+                });
+              }
+              
               loadingStates.setIsExplaining(false);
               setSelectedWords([]); // Clear selected words as they are now explained
               setAbortController(null);
+              // Ensure all cards start collapsed
+              setExpandedCards(new Set());
               toast.success('All explanations completed!');
               return;
             }
@@ -915,11 +935,29 @@ export default function MainApp() {
               loadingStates.setIsCompleted(true);
               // Mark words as explained (change from purple to green background)
               setExplainedWords(prev => [...prev, ...importantWords]);
+              
+              // Update tab-specific explained word names for highlighting
+              if (currentTab === 'text') {
+                setTextExplainedWordNames(prev => {
+                  const newSet = new Set(prev);
+                  importantWords.forEach((word: any) => newSet.add(word.word));
+                  return newSet;
+                });
+              } else if (currentTab === 'words') {
+                setWordsExplainedWordNames(prev => {
+                  const newSet = new Set(prev);
+                  importantWords.forEach((word: any) => newSet.add(word.word));
+                  return newSet;
+                });
+              }
+              
               loadingStates.setIsExplaining(false);
               setSelectedWords([]); // Clear selected words as they are now explained
               setAbortController(null);
               loadingStates.setIsSmartExplaining(false);
               loadingStates.setSmartExplainPhase('idle');
+              // Ensure all cards start collapsed
+              setExpandedCards(new Set());
               toast.success('All explanations completed!');
               return;
             }
@@ -1163,12 +1201,14 @@ export default function MainApp() {
 
   // Handle clicking on explained words - scroll to explanation and expand
   const handleExplainedWordClick = (word: string) => {
-    // First, expand the card for this word
-    setExpandedCards(prev => {
-      const newSet = new Set(prev);
-      newSet.add(word);
-      return newSet;
-    });
+    console.log('=== WORD CLICK DEBUG ===');
+    console.log('Clicked on word:', word);
+    console.log('Word length:', word.length);
+    console.log('Word char codes:', word.split('').map(c => c.charCodeAt(0)));
+    console.log('Word type:', typeof word);
+    
+    // First, expand the card for this word (and collapse others to avoid multiple expanded cards)
+    // We'll set this after finding the target card to use the correct case
 
     // Scroll to explanation section
     if (explanationSectionRef.current) {
@@ -1182,27 +1222,131 @@ export default function MainApp() {
         if (explanationSectionRef.current) {
           // Find the specific explanation card for this word
           const explanationCards = explanationSectionRef.current.querySelectorAll('[data-word]');
-          const targetCard = Array.from(explanationCards).find(card => 
-            card.getAttribute('data-word') === word
-          ) as HTMLElement;
+          console.log('Found explanation cards:', Array.from(explanationCards).map(card => card.getAttribute('data-word')));
+          
+          // More robust word matching
+          const targetCard = Array.from(explanationCards).find(card => {
+            const cardWord = card.getAttribute('data-word');
+            console.log(`=== COMPARING ===`);
+            console.log(`Click word: "${word}" (length: ${word.length})`);
+            console.log(`Card word: "${cardWord}" (length: ${cardWord?.length})`);
+            
+            if (!cardWord) {
+              console.log('Card word is null/undefined');
+              return false;
+            }
+            
+            // Try case-insensitive match first (most common issue)
+            if (cardWord.toLowerCase() === word.toLowerCase()) {
+              console.log('✅ Case-insensitive match found');
+              return true;
+            }
+            
+            // Try original exact match
+            if (cardWord === word) {
+              console.log('✅ Exact match found');
+              return true;
+            }
+            
+            // Normalize both words for comparison
+            const normalizeWord = (w: string) => w.toLowerCase().trim().replace(/[.,!?;:]/g, '');
+            const normalizedClickWord = normalizeWord(word);
+            const normalizedCardWord = normalizeWord(cardWord);
+            
+            console.log(`Normalized click: "${normalizedClickWord}" (length: ${normalizedClickWord.length})`);
+            console.log(`Normalized card: "${normalizedCardWord}" (length: ${normalizedCardWord.length})`);
+            
+            // Try exact normalized match
+            if (normalizedCardWord === normalizedClickWord) {
+              console.log('✅ Normalized exact match found');
+              return true;
+            }
+            
+            console.log('❌ No match found');
+            return false;
+          }) as HTMLElement;
 
-          if (targetCard) {
+          // If no target card found, try a more aggressive search
+          let finalTargetCard = targetCard;
+          if (!targetCard) {
+            console.log('=== FALLBACK SEARCH ===');
+            const fallbackCard = Array.from(explanationCards).find(card => {
+              const cardWord = card.getAttribute('data-word');
+              if (!cardWord) return false;
+              
+              // Try very aggressive normalization
+              const aggressiveNormalize = (w: string) => w.toLowerCase().trim().replace(/[^a-z]/g, '');
+              const aggressiveClickWord = aggressiveNormalize(word);
+              const aggressiveCardWord = aggressiveNormalize(cardWord);
+              
+              console.log(`Aggressive normalized click: "${aggressiveClickWord}"`);
+              console.log(`Aggressive normalized card: "${aggressiveCardWord}"`);
+              
+              if (aggressiveCardWord === aggressiveClickWord) {
+                console.log('✅ Aggressive match found');
+                return true;
+              }
+              
+              // Try substring matching
+              if (cardWord.toLowerCase().includes(word.toLowerCase()) || word.toLowerCase().includes(cardWord.toLowerCase())) {
+                console.log('✅ Substring match found');
+                return true;
+              }
+              
+              return false;
+            }) as HTMLElement;
+            
+            if (fallbackCard) {
+              console.log('✅ Fallback card found');
+              finalTargetCard = fallbackCard;
+            }
+          }
+
+          console.log('Final target card found:', !!finalTargetCard);
+          if (finalTargetCard) {
+            console.log('Scrolling to target card');
+            console.log('Target card element:', finalTargetCard);
+            const cardWord = finalTargetCard.getAttribute('data-word');
+            console.log('Target card data-word:', cardWord);
+            
+            // Expand the card using the correct case from the card's data-word attribute
+            if (cardWord) {
+              console.log('Expanding card for word:', cardWord);
+              setExpandedCards(new Set([cardWord]));
+            }
+            
             // Get the explanation container's scroll position
             const container = explanationSectionRef.current;
+            if (!container) {
+              console.log('❌ Container is null!');
+              return;
+            }
+            
+            console.log('Container found:', container);
             const containerRect = container.getBoundingClientRect();
-            const targetRect = targetCard.getBoundingClientRect();
+            const targetRect = finalTargetCard.getBoundingClientRect();
+            
+            console.log('Container rect:', containerRect);
+            console.log('Target rect:', targetRect);
             
             // Calculate the scroll position needed to bring the card to the top
             const scrollTop = container.scrollTop + (targetRect.top - containerRect.top);
+            console.log('Calculated scrollTop:', scrollTop);
             
             // Smooth scroll within the explanation container
             container.scrollTo({
               top: scrollTop,
               behavior: 'smooth'
             });
+            
+            console.log('Scroll command executed');
+          } else {
+            console.log('No target card found for word:', word);
           }
         }
-      }, 400); // Slightly longer delay for a more gentle experience
+      }, 500); // Increased delay for better reliability
+    } else {
+      console.log('explanationSectionRef.current is null');
     }
   };
 
