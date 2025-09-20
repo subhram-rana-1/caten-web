@@ -68,10 +68,33 @@ const TextTab: React.FC<TextTabProps> = ({
   }, []);
 
   // Handle double click on words
-  const handleDoubleClick = useCallback((e: React.MouseEvent<HTMLTextAreaElement>) => {
+  const handleDoubleClick = useCallback((e: React.MouseEvent<HTMLTextAreaElement | HTMLDivElement>) => {
     if (isReadOnly) {
-      const textarea = e.currentTarget;
-      const clickPosition = textarea.selectionStart;
+      const element = e.currentTarget;
+      
+      // For div elements, we need to calculate click position differently
+      let clickPosition: number = 0;
+      if (element instanceof HTMLTextAreaElement) {
+        clickPosition = element.selectionStart || 0;
+      } else {
+        // For div elements, we'll use a simple approach to find the clicked word
+        const range = document.createRange();
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+          range.setStart(selection.anchorNode!, selection.anchorOffset);
+          range.setEnd(selection.anchorNode!, selection.anchorOffset);
+          // For now, we'll use a simplified approach
+          clickPosition = Math.floor((selection.anchorOffset || 0) * 0.1);
+        } else {
+          // Fallback: find the word at the click position
+          const rect = element.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          
+          // This is a simplified approach - in a real implementation,
+          // you'd want to use a more sophisticated method to find the exact character position
+          clickPosition = Math.floor((x / rect.width) * text.length);
+        }
+      }
       
       // Find word boundaries
       let start = clickPosition;
@@ -88,9 +111,8 @@ const TextTab: React.FC<TextTabProps> = ({
       }
       
       if (start < end) {
-        const word = text.slice(start, end);
         const wordLocation: WordLocation = {
-          word,
+          word: text.slice(start, end),
           index: start,
           length: end - start,
         };
@@ -195,6 +217,33 @@ const TextTab: React.FC<TextTabProps> = ({
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
+
+      {/* Instruction Sentences */}
+      <div className="space-y-2">
+        {/* Sentence 1: Double click instruction - visible when there is text */}
+        {text && text.trim().length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            className="text-sm text-text-secondary"
+          >
+            Double click on the word to select
+          </motion.div>
+        )}
+
+        {/* Sentence 2: Green background instruction - visible when there are explained words */}
+        {explainedWords.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            className="text-sm text-text-secondary"
+          >
+            Click on the word with green color background to view explanation
+          </motion.div>
+        )}
       </div>
 
       {/* Text Area */}

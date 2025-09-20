@@ -1923,7 +1923,7 @@ export default function MainApp() {
             ),
 
             // Text Tab Content
-            displayedTab === 'text' && React.createElement('div', { className: `h-[384px] flex flex-col tab-content ${activeTab === 'text' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
+            displayedTab === 'text' && React.createElement('div', { className: `h-[480px] flex flex-col tab-content ${activeTab === 'text' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
               // Search Bar - only show when there is text
               text.trim() && React.createElement('input', {
                 type: 'text',
@@ -1932,6 +1932,31 @@ export default function MainApp() {
                 onChange: (e) => setSearchTerm(e.target.value),
                 className: 'w-full h-9 px-3 py-2 border border-purple-300 rounded-full text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 mb-4'
               }),
+
+              // Instruction Sentences
+              text.trim() && React.createElement('div', { className: 'space-y-2 mb-4 ml-4' },
+                // Sentence 1: Double click instruction - visible when there is text
+                React.createElement('div', { 
+                  className: 'text-xs text-purple-600 italic flex items-center' 
+                }, 
+                  React.createElement('svg', { className: 'w-3 h-3 mr-2 text-purple-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                    React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122' })
+                  ),
+                  'Double click on the word to select'
+                ),
+                
+                // Sentence 2: Green background instruction - visible when there are explained words
+                textExplanations.length > 0 && React.createElement('div', { 
+                  className: 'text-xs text-purple-600 italic flex items-center' 
+                }, 
+                  React.createElement('svg', { className: 'w-3 h-3 mr-2 text-green-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                    React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
+                  ),
+                  React.createElement('span', {}, 'Click on the word with '),
+                  React.createElement('span', { className: 'bg-green-200 px-1 rounded' }, 'green color'),
+                  React.createElement('span', {}, ' background to view explanation')
+                )
+              ),
 
               // Text Area with Smart Explain Overlay
               React.createElement('div', { className: 'relative flex flex-col flex-1' },
