@@ -123,6 +123,12 @@ export default function MainApp() {
   const [showErrorBanner, setShowErrorBanner] = useState(false);
   const [showWordLimitAlert, setShowWordLimitAlert] = useState(false);
   const [showCropCanvas, setShowCropCanvas] = useState(false);
+  const [cropData, setCropData] = useState({ x: 0, y: 0, width: 100, height: 100 });
+  const [rotation, setRotation] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [cropStart, setCropStart] = useState({ x: 0, y: 0, width: 100, height: 100 });
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
@@ -151,6 +157,7 @@ export default function MainApp() {
       }
     };
   }, [imagePreviewUrl]);
+
 
   // Clipboard paste functionality
   const handlePaste = useCallback(async (e: ClipboardEvent) => {
@@ -415,7 +422,10 @@ export default function MainApp() {
     setWordsWordToIndexMap(new Map());
     setSearchTerm('');
     setSearchResults([]);
+    // Reset all completion states
     setIsCompleted(false);
+    setTextIsCompleted(false);
+    setWordsIsCompleted(false);
     setManualWordInput('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -576,6 +586,8 @@ export default function MainApp() {
   // Handle crop canvas cancel
   const handleCropCancel = () => {
     setShowCropCanvas(false);
+    setCropData({ x: 0, y: 0, width: 100, height: 100 });
+    setRotation(0);
     setUploadedImageFile(null);
     if (imagePreviewUrl) {
       URL.revokeObjectURL(imagePreviewUrl);
@@ -588,57 +600,188 @@ export default function MainApp() {
   const handleCropExplain = async () => {
     if (!uploadedImageFile) return;
 
+    console.log('Starting image processing...');
     setIsLoading(true);
+    setIsProcessingImage(true);
     setShowCropCanvas(false);
+    
+    // Switch to text tab immediately
+    setActiveTab('text');
+    setDisplayedTab('text');
+    setTimeout(() => {
+      updateSliderPosition('text');
+    }, 50);
+    
+    console.log('isProcessingImage set to true, switched to text tab');
 
     try {
-      const formData = new FormData();
-      formData.append('file', uploadedImageFile);
-
-      const response = await fetch('/api/v1/image-to-text', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-      const data = await response.json();
+      // Create a canvas to apply crop and rotation
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
       
-      if (data.text) {
-        // Validate word limit before setting text
-        if (!validateWordLimit(data.text)) {
-          return; // Don't set text if it exceeds limit
+      img.onload = async () => {
+        try {
+          // Calculate crop dimensions in pixels
+          const cropX = (img.width * cropData.x) / 100;
+          const cropY = (img.height * cropData.y) / 100;
+          const cropWidth = (img.width * cropData.width) / 100;
+          const cropHeight = (img.height * cropData.height) / 100;
+          
+          // Set canvas size to cropped dimensions
+          canvas.width = cropWidth;
+          canvas.height = cropHeight;
+          
+          if (ctx) {
+            // Apply rotation
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate((rotation * Math.PI) / 180);
+            ctx.translate(-canvas.width / 2, -canvas.height / 2);
+            
+            // Draw cropped and rotated image
+            ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+          }
+          
+          // Convert canvas to blob
+          canvas.toBlob(async (blob) => {
+            if (!blob) return;
+            
+            const formData = new FormData();
+            formData.append('file', blob, 'cropped-image.jpg');
+
+            const response = await fetch('/api/v1/image-to-text', {
+              method: 'POST',
+              body: formData,
+            });
+
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+            const data = await response.json();
+            
+            if (data.text) {
+              // Validate word limit before setting text
+              if (!validateWordLimit(data.text)) {
+                return; // Don't set text if it exceeds limit
+              }
+              
+              // Set the extracted text
+              setText(data.text);
+              
+              toast.success('Text extracted successfully from image!');
+            } else {
+              throw new Error('No text extracted from image');
+            }
+          }, 'image/jpeg', 0.9);
+        } catch (error) {
+          console.error('Error processing cropped image:', error);
+          showError('Failed to extract text from cropped image. Please try again.');
+        } finally {
+          console.log('Image processing completed, resetting states');
+          setIsLoading(false);
+          setIsProcessingImage(false);
+          // Clean up
+          setUploadedImageFile(null);
+          if (imagePreviewUrl) {
+            URL.revokeObjectURL(imagePreviewUrl);
+            setImagePreviewUrl(null);
+          }
+          if (fileInputRef.current) fileInputRef.current.value = '';
         }
-        
-        // On success: Switch to Text tab with extracted text auto-filled
-        setText(data.text);
-        
-        // Switch to text tab with smooth transition
-        setActiveTab('text');
-        setDisplayedTab('text');
-        
-        // Update slider position after a brief delay to ensure DOM is updated
-        setTimeout(() => {
-          updateSliderPosition('text');
-        }, 50);
-        
-        toast.success('Text extracted successfully! Switched to Text tab.');
-      } else {
-        throw new Error('No text extracted from image');
-      }
+      };
+      
+      img.src = imagePreviewUrl!;
     } catch (error) {
       console.error('Error processing image:', error);
+      console.log('Error occurred, resetting isProcessingImage to false');
       showError('Failed to extract text from image. Please try again.');
-    } finally {
       setIsLoading(false);
-      // Clean up
-      setUploadedImageFile(null);
-      if (imagePreviewUrl) {
-        URL.revokeObjectURL(imagePreviewUrl);
-        setImagePreviewUrl(null);
-      }
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setIsProcessingImage(false);
     }
+  };
+
+  // Handle rotation
+  const handleRotateLeft = () => {
+    setRotation(prev => (prev - 90) % 360);
+  };
+
+  const handleRotateRight = () => {
+    setRotation(prev => (prev + 90) % 360);
+  };
+
+  // Handle crop area dragging
+  const handleCropMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setCropStart({ ...cropData });
+  };
+
+  const handleCropMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    
+    const deltaX = e.clientX - dragStart.x;
+    const deltaY = e.clientY - dragStart.y;
+    
+    setCropData({
+      x: Math.max(0, Math.min(100 - cropData.width, cropStart.x + (deltaX / 4))),
+      y: Math.max(0, Math.min(100 - cropData.height, cropStart.y + (deltaY / 4))),
+      width: cropData.width,
+      height: cropData.height
+    });
+  };
+
+  const handleCropMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // Handle crop area resizing
+  const handleCropResize = (direction: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startCrop = { ...cropData };
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+      
+      let newCrop = { ...startCrop };
+      
+      switch (direction) {
+        case 'nw':
+          newCrop.x = Math.max(0, Math.min(startCrop.x + startCrop.width - 10, startCrop.x + deltaX / 4));
+          newCrop.y = Math.max(0, Math.min(startCrop.y + startCrop.height - 10, startCrop.y + deltaY / 4));
+          newCrop.width = startCrop.width - (newCrop.x - startCrop.x);
+          newCrop.height = startCrop.height - (newCrop.y - startCrop.y);
+          break;
+        case 'ne':
+          newCrop.y = Math.max(0, Math.min(startCrop.y + startCrop.height - 10, startCrop.y + deltaY / 4));
+          newCrop.width = Math.max(10, Math.min(100 - newCrop.x, startCrop.width + deltaX / 4));
+          newCrop.height = startCrop.height - (newCrop.y - startCrop.y);
+          break;
+        case 'sw':
+          newCrop.x = Math.max(0, Math.min(startCrop.x + startCrop.width - 10, startCrop.x + deltaX / 4));
+          newCrop.width = startCrop.width - (newCrop.x - startCrop.x);
+          newCrop.height = Math.max(10, Math.min(100 - newCrop.y, startCrop.height + deltaY / 4));
+          break;
+        case 'se':
+          newCrop.width = Math.max(10, Math.min(100 - newCrop.x, startCrop.width + deltaX / 4));
+          newCrop.height = Math.max(10, Math.min(100 - newCrop.y, startCrop.height + deltaY / 4));
+          break;
+      }
+      
+      setCropData(newCrop);
+    };
+    
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
   };
 
   // Smart Select Words functionality
@@ -1785,12 +1928,54 @@ export default function MainApp() {
 
               // Text Area with Smart Explain Overlay
               React.createElement('div', { className: 'relative flex flex-col flex-1' },
-                text 
-                  ? React.createElement('div', {
-                      ref: textCanvasRef,
-                      className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap overflow-y-auto hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : ''}`,
-                      onDoubleClick: handleDoubleClick
-                    }, renderHighlightedText())
+                (text || isProcessingImage)
+                  ? React.createElement('div', { className: 'relative' },
+                      text ? React.createElement('div', {
+                        ref: textCanvasRef,
+                        className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap overflow-y-auto hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting || isProcessingImage ? 'blur-[0.5px]' : ''}`,
+                        onDoubleClick: handleDoubleClick
+                      }, renderHighlightedText()) : React.createElement('div', {
+                        className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap overflow-y-auto hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting || isProcessingImage ? 'blur-[0.5px]' : ''}`,
+                      }, ''),
+                      
+                      // Image Processing Overlay for text canvas
+                      isProcessingImage && React.createElement('div', { className: 'absolute inset-0 bg-white bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg' },
+                        React.createElement('div', { className: 'text-center' },
+                          React.createElement('div', { className: 'mb-4' },
+                            React.createElement('svg', { 
+                              className: 'w-16 h-16 text-purple-500 mx-auto animate-wireframe', 
+                              fill: 'none', 
+                              stroke: 'currentColor', 
+                              strokeWidth: '2',
+                              viewBox: '0 0 24 24' 
+                            },
+                              // Intelligent wireframe icon - document with text lines
+                              React.createElement('path', { 
+                                strokeLinecap: 'round', 
+                                strokeLinejoin: 'round', 
+                                d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' 
+                              }),
+                              // Animated scanning lines
+                              React.createElement('path', { 
+                                strokeLinecap: 'round', 
+                                strokeLinejoin: 'round', 
+                                strokeWidth: 1.5, 
+                                d: 'M3 8h18M3 12h18M3 16h18',
+                                className: 'opacity-30'
+                              })
+                            )
+                          ),
+                          React.createElement('h3', { className: 'text-lg font-medium text-purple-600 mb-2' }, 'Generating text from the image'),
+                          React.createElement('div', { className: 'flex items-center justify-center mt-2' },
+                            React.createElement('div', { className: 'flex space-x-1' },
+                              React.createElement('div', { className: 'w-2 h-2 bg-purple-500 rounded-full animate-bounce' }),
+                              React.createElement('div', { className: 'w-2 h-2 bg-purple-500 rounded-full animate-bounce', style: { animationDelay: '0.1s' } }),
+                              React.createElement('div', { className: 'w-2 h-2 bg-purple-500 rounded-full animate-bounce', style: { animationDelay: '0.2s' } })
+                            )
+                          )
+                        )
+                      )
+                    )
                   : React.createElement('div', { className: 'relative' },
                       React.createElement('textarea', {
                         placeholder: 'Paste your text here (Dont write manually)...',
@@ -1803,9 +1988,47 @@ export default function MainApp() {
                             }
                           }
                         },
-                        className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] resize-none overflow-y-auto transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : ''}`,
+                        className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] resize-none overflow-y-auto transition-all duration-200 ${isPreparingExplanations || isSmartSelecting || isProcessingImage ? 'blur-[0.5px]' : ''}`,
                         disabled: textExplanations.length > 0
                       }),
+                      
+                      // Image Processing Overlay for textarea
+                      isProcessingImage && React.createElement('div', { className: 'absolute inset-0 bg-white bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg' },
+                        React.createElement('div', { className: 'text-center' },
+                          React.createElement('div', { className: 'mb-4' },
+                            React.createElement('svg', { 
+                              className: 'w-16 h-16 text-purple-500 mx-auto animate-wireframe', 
+                              fill: 'none', 
+                              stroke: 'currentColor', 
+                              strokeWidth: '2',
+                              viewBox: '0 0 24 24' 
+                            },
+                              // Intelligent wireframe icon - document with text lines
+                              React.createElement('path', { 
+                                strokeLinecap: 'round', 
+                                strokeLinejoin: 'round', 
+                                d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' 
+                              }),
+                              // Animated scanning lines
+                              React.createElement('path', { 
+                                strokeLinecap: 'round', 
+                                strokeLinejoin: 'round', 
+                                strokeWidth: 1.5, 
+                                d: 'M3 8h18M3 12h18M3 16h18',
+                                className: 'opacity-30'
+                              })
+                            )
+                          ),
+                          React.createElement('h3', { className: 'text-lg font-medium text-purple-600 mb-2' }, 'Generating text from the image'),
+                          React.createElement('div', { className: 'flex items-center justify-center mt-2' },
+                            React.createElement('div', { className: 'flex space-x-1' },
+                              React.createElement('div', { className: 'w-2 h-2 bg-purple-500 rounded-full animate-bounce' }),
+                              React.createElement('div', { className: 'w-2 h-2 bg-purple-500 rounded-full animate-bounce', style: { animationDelay: '0.1s' } }),
+                              React.createElement('div', { className: 'w-2 h-2 bg-purple-500 rounded-full animate-bounce', style: { animationDelay: '0.2s' } })
+                            )
+                          )
+                        )
+                      ),
                       
                       // Processing overlay for Power Words Pack
                       isLoading && React.createElement('div', { className: 'absolute inset-0 bg-white bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-10' },
@@ -1828,6 +2051,7 @@ export default function MainApp() {
                           React.createElement('p', { className: 'text-purple-600 font-semibold text-base' }, 'Preparing a challenging paragraph for you')
                         )
                       ),
+
                       
                       // Random paragraph button - only show when text is empty
                       !text.trim() && React.createElement('button', {
@@ -1847,6 +2071,7 @@ export default function MainApp() {
                         isLoading ? 'Loading...' : 'Power Words Pack'
                       )
                     ),
+
                 
                 // Smart Select Overlay
                 isSmartSelecting && React.createElement('div', { className: 'text-canvas-overlay' },
@@ -1874,6 +2099,7 @@ export default function MainApp() {
                     )
                   )
                 ),
+
 
                 // Smart Explain Overlay
                 getCurrentTabLoadingStates().isSmartExplaining && React.createElement('div', { className: 'text-canvas-overlay' },
@@ -1972,7 +2198,7 @@ export default function MainApp() {
                     'Clear Text'
                   ),
                   
-                  textExplanations.length > 0 && React.createElement('button', {
+                  textExplanations.length > 0 && !getCurrentTabLoadingStates().isSmartExplaining && !getCurrentTabLoadingStates().isExplaining && React.createElement('button', {
                     onClick: handleClearTextExplanations,
                     className: 'inline-flex items-center justify-center rounded-lg font-medium border border-red-300 text-red-600 hover:bg-red-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
@@ -2466,7 +2692,7 @@ export default function MainApp() {
       className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' 
     },
       React.createElement('div', { 
-        className: 'bg-white rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden' 
+        className: 'bg-white rounded-2xl shadow-2xl max-w-5xl w-full mx-4 max-h-[90vh] overflow-hidden' 
       },
         // Header
         React.createElement('div', { 
@@ -2485,36 +2711,142 @@ export default function MainApp() {
           )
         ),
         
-        // Image Preview Area
+        // Toolbar
         React.createElement('div', { 
-          className: 'p-6 flex-1 flex items-center justify-center bg-gray-50' 
+          className: 'flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50' 
+        },
+          // Rotation Controls
+          React.createElement('div', { className: 'flex items-center space-x-2' },
+            React.createElement('span', { className: 'text-sm font-medium text-gray-700' }, 'Rotate:'),
+            React.createElement('button', {
+              onClick: handleRotateLeft,
+              className: 'p-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors',
+              title: 'Rotate Left'
+            },
+              React.createElement('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' })
+              )
+            ),
+            React.createElement('button', {
+              onClick: handleRotateRight,
+              className: 'p-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors',
+              title: 'Rotate Right'
+            },
+              React.createElement('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M20 4v5h-.582m0 0a8.001 8.001 0 00-15.356 2m15.356-2H15m5 11v-5h-.581m0 0a8.003 8.003 0 01-15.357 2m15.357 2H15' })
+              )
+            ),
+            React.createElement('span', { className: 'text-sm text-gray-500 ml-2' }, `${rotation}°`)
+          ),
+          
+          // Crop Info
+          React.createElement('div', { className: 'text-sm text-gray-600' },
+            `Crop: ${Math.round(cropData.x)}%, ${Math.round(cropData.y)}% (${Math.round(cropData.width)}% × ${Math.round(cropData.height)}%)`
+          )
+        ),
+        
+        // Image Preview Area with Crop Overlay
+        React.createElement('div', { 
+          className: 'p-6 flex-1 flex items-center justify-center bg-gray-50 relative' 
         },
           imagePreviewUrl && React.createElement('div', { 
-            className: 'relative max-w-full max-h-96' 
+            className: 'relative max-w-full max-h-96 overflow-hidden rounded-lg shadow-lg' 
           },
             React.createElement('img', {
               src: imagePreviewUrl,
               alt: 'Uploaded image',
-              className: 'max-w-full max-h-96 object-contain rounded-lg shadow-lg'
-            })
+              className: 'max-w-full max-h-96 object-contain',
+              style: { transform: `rotate(${rotation}deg)` }
+            }),
+            
+            // Crop Overlay
+            React.createElement('div', {
+              className: 'absolute inset-0 pointer-events-none',
+              style: {
+                background: `linear-gradient(
+                  to right,
+                  rgba(0,0,0,0.3) 0%,
+                  rgba(0,0,0,0.3) ${cropData.x}%,
+                  transparent ${cropData.x}%,
+                  transparent ${cropData.x + cropData.width}%,
+                  rgba(0,0,0,0.3) ${cropData.x + cropData.width}%,
+                  rgba(0,0,0,0.3) 100%
+                ),
+                linear-gradient(
+                  to bottom,
+                  rgba(0,0,0,0.3) 0%,
+                  rgba(0,0,0,0.3) ${cropData.y}%,
+                  transparent ${cropData.y}%,
+                  transparent ${cropData.y + cropData.height}%,
+                  rgba(0,0,0,0.3) ${cropData.y + cropData.height}%,
+                  rgba(0,0,0,0.3) 100%
+                )`
+              }
+            }),
+            
+            // Crop Selection Area
+            React.createElement('div', {
+              className: 'absolute border-2 border-blue-500 bg-blue-100 bg-opacity-20 cursor-move',
+              style: {
+                left: `${cropData.x}%`,
+                top: `${cropData.y}%`,
+                width: `${cropData.width}%`,
+                height: `${cropData.height}%`,
+                pointerEvents: 'all'
+              },
+              onMouseDown: handleCropMouseDown,
+              onMouseMove: handleCropMouseMove,
+              onMouseUp: handleCropMouseUp,
+              onMouseLeave: handleCropMouseUp
+            },
+              // Corner resize handles
+              React.createElement('div', {
+                className: 'absolute -top-1 -left-1 w-3 h-3 bg-blue-500 border border-white rounded-full cursor-nw-resize',
+                onMouseDown: (e: React.MouseEvent) => handleCropResize('nw', e)
+              }),
+              React.createElement('div', {
+                className: 'absolute -top-1 -right-1 w-3 h-3 bg-blue-500 border border-white rounded-full cursor-ne-resize',
+                onMouseDown: (e: React.MouseEvent) => handleCropResize('ne', e)
+              }),
+              React.createElement('div', {
+                className: 'absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 border border-white rounded-full cursor-sw-resize',
+                onMouseDown: (e: React.MouseEvent) => handleCropResize('sw', e)
+              }),
+              React.createElement('div', {
+                className: 'absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 border border-white rounded-full cursor-se-resize',
+                onMouseDown: (e: React.MouseEvent) => handleCropResize('se', e)
+              })
+            )
           )
         ),
         
         // Action Buttons
         React.createElement('div', { 
-          className: 'flex items-center justify-end space-x-4 p-6 border-t border-gray-200' 
+          className: 'flex items-center justify-between p-6 border-t border-gray-200' 
         },
-          React.createElement('button', {
-            onClick: handleCropCancel,
-            className: 'px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors'
-          }, 'Cancel'),
-          React.createElement('button', {
-            onClick: handleCropExplain,
-            disabled: isLoading,
-            className: 'px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2'
-          },
-            isLoading && React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-white' }),
-            React.createElement('span', {}, isLoading ? 'Reading text from image...' : 'Explain')
+          React.createElement('div', { className: 'flex items-center space-x-2' },
+            React.createElement('button', {
+              onClick: () => setCropData({ x: 0, y: 0, width: 100, height: 100 }),
+              className: 'px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors'
+            }, 'Reset Crop'),
+            React.createElement('button', {
+              onClick: () => setRotation(0),
+              className: 'px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors'
+            }, 'Reset Rotation')
+          ),
+          React.createElement('div', { className: 'flex items-center space-x-4' },
+            React.createElement('button', {
+              onClick: handleCropCancel,
+              className: 'px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors'
+            }, 'Cancel'),
+            React.createElement('button', {
+              onClick: handleCropExplain,
+              disabled: isLoading,
+              className: 'px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2'
+            },
+              isLoading && React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-white' }),
+              React.createElement('span', {}, isLoading ? 'Reading text from image...' : 'Explain')
+            )
           )
         )
       )
