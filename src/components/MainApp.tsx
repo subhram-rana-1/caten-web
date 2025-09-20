@@ -548,15 +548,13 @@ export default function MainApp() {
         setTextExplanations([]);
         textExplanationsRef.current = [];
         setExplainedWords([]);
-        setExplainedWordNames(new Set());
         setTextExplainedWordNames(new Set());
-        setWordsExplainedWordNames(new Set());
         setIsCompleted(false);
         setIsStreaming(false);
         setIsExplaining(false);
         setIsSmartExplaining(false);
         setSmartExplainPhase('selecting');
-        // Note: We preserve words tab data (manualWords, wordsExplanations, etc.)
+        // Note: We preserve words tab data (manualWords, wordsExplanations, wordsExplainedWordNames, etc.)
         
           // Store the file and show crop canvas
           setUploadedImageFile(file);
