@@ -1962,7 +1962,7 @@ export default function MainApp() {
               React.createElement('div', { className: 'flex justify-between items-start mt-auto pt-6' },
                 // Left Button Group - Clear Buttons
                 React.createElement('div', { className: 'flex flex-col space-y-3' },
-                  text.trim() && React.createElement('button', {
+                  text.trim() && !getCurrentTabLoadingStates().isSmartExplaining && !getCurrentTabLoadingStates().isExplaining && React.createElement('button', {
                     onClick: handleClearText,
                     className: 'inline-flex items-center justify-center rounded-lg font-medium border border-red-300 text-red-600 hover:bg-red-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
@@ -1985,7 +1985,7 @@ export default function MainApp() {
                 
                 // Middle Button Group - Smart Select and Unselect
                 React.createElement('div', { className: 'flex flex-col space-y-3' },
-                  (text.trim() && !isSmartSelecting && (displayedTab === 'text' ? textExplanations.length === 0 : wordsExplanations.length === 0)) && React.createElement('button', {
+                  (text.trim() && !isSmartSelecting && !getCurrentTabLoadingStates().isSmartExplaining && !getCurrentTabLoadingStates().isExplaining && (displayedTab === 'text' ? textExplanations.length === 0 : wordsExplanations.length === 0)) && React.createElement('button', {
                     onClick: handleSmartSelectWords,
                     className: 'inline-flex items-center justify-center rounded-lg font-medium border border-primary-300 text-primary-600 hover:bg-primary-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
@@ -1995,7 +1995,7 @@ export default function MainApp() {
                     isSmartSelecting ? 'Selecting...' : 'Smart select words'
                   ),
                   
-                  selectedWords.length > 0 && React.createElement('button', {
+                  selectedWords.length > 0 && !getCurrentTabLoadingStates().isExplaining && !getCurrentTabLoadingStates().isSmartExplaining && React.createElement('button', {
                     onClick: handleUnselectAllWords,
                     className: 'inline-flex items-center justify-center rounded-lg font-medium border border-gray-300 text-gray-600 hover:bg-gray-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
@@ -2012,8 +2012,8 @@ export default function MainApp() {
                   (selectedWords.length > 0 || manualWords.length > 0) ? 
                     // When words are selected: vertical layout (stacked)
                     React.createElement('div', { className: 'flex flex-col space-y-2' },
-                      // Explain button
-                      !getCurrentTabLoadingStates().isExplaining && !getCurrentTabLoadingStates().isSmartExplaining && React.createElement('button', {
+                      // Explain button - only show when there are words to explain
+                      selectedWords.length > 0 && !getCurrentTabLoadingStates().isExplaining && !getCurrentTabLoadingStates().isSmartExplaining && React.createElement('button', {
                         onClick: handleExplainWords,
                         className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                       },
@@ -2080,7 +2080,7 @@ export default function MainApp() {
                       )
                     ),
                   
-                  // Stop button (show when streaming or smart explaining) - always horizontal with explain buttons
+                  // Stop button (show when streaming or smart explaining) - positioned on the right
                   (getCurrentTabLoadingStates().isStreaming || getCurrentTabLoadingStates().isSmartExplaining) && React.createElement('button', {
                     onClick: handleStopStreaming,
                     className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
@@ -2232,10 +2232,10 @@ export default function MainApp() {
 
               // Action buttons at the bottom
               (manualWords.length > 0 || wordsExplanations.length > 0) && React.createElement('div', { className: 'mt-auto' },
-                // Button row with proper layout: Clear All (left) -> Explain (right)
+                // Button row with proper layout: Clear All (left) -> Explain (right) -> Stop (far right)
                 React.createElement('div', { className: 'flex justify-between items-center' },
-                  // Left side: Clear all explanations button
-                  React.createElement('button', {
+                  // Left side: Clear all explanations button - hide during explain process
+                  !getCurrentTabLoadingStates().isExplaining && !getCurrentTabLoadingStates().isSmartExplaining && React.createElement('button', {
                     onClick: handleClearWordsExplanations,
                     className: 'inline-flex items-center justify-center rounded-lg font-medium border border-red-300 text-red-600 hover:bg-red-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
@@ -2245,25 +2245,22 @@ export default function MainApp() {
                     'Clear all explanations'
                   ),
                   
-                  // Right side: Explain button and Stop button (when needed)
-                  React.createElement('div', { className: 'flex space-x-2' },
-                    React.createElement('button', {
-                      onClick: handleExplainWords,
-                      disabled: getCurrentTabLoadingStates().isExplaining || getCurrentTabLoadingStates().isSmartExplaining || manualWords.every(word => wordsExplainedWordNames.has(word)),
-                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
-                    },
-                      React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                        React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
-                      ),
-                      getCurrentTabLoadingStates().isExplaining && !getCurrentTabLoadingStates().isSmartExplaining ? 'Explaining...' : `Explain ${manualWords.filter(word => !wordsExplainedWordNames.has(word)).length} word${manualWords.filter(word => !wordsExplainedWordNames.has(word)).length > 1 ? 's' : ''}`
+                  // Center: Explain button (when not explaining)
+                  !getCurrentTabLoadingStates().isExplaining && !getCurrentTabLoadingStates().isSmartExplaining && manualWords.filter(word => !wordsExplainedWordNames.has(word)).length > 0 && React.createElement('button', {
+                    onClick: handleExplainWords,
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
+                  },
+                    React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
                     ),
-                    
-                    // Stop button for Words tab - shows right next to Explain button when needed
-                    (getCurrentTabLoadingStates().isStreaming || getCurrentTabLoadingStates().isSmartExplaining) && React.createElement('button', {
-                      onClick: handleStopStreaming,
-                      className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
-                    }, 'Stop')
-                  )
+                    `Explain ${manualWords.filter(word => !wordsExplainedWordNames.has(word)).length} word${manualWords.filter(word => !wordsExplainedWordNames.has(word)).length > 1 ? 's' : ''}`
+                  ),
+                  
+                  // Right side: Stop button (when explaining) - always on far right
+                  (getCurrentTabLoadingStates().isStreaming || getCurrentTabLoadingStates().isSmartExplaining) && React.createElement('button', {
+                    onClick: handleStopStreaming,
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
+                  }, 'Stop')
                 )
               )
             )
@@ -2280,18 +2277,7 @@ export default function MainApp() {
 
             // Text/Words tab content - explanations
               React.createElement(React.Fragment, {},
-                // Search box for explanations (only show when there are explanations)
-                sortedExplanations.length > 0 && React.createElement('div', { className: 'mb-4' },
-                  React.createElement('input', {
-                    type: 'text',
-                    placeholder: 'Search word ...',
-                    value: explanationSearchTerm,
-                    onChange: (e) => setExplanationSearchTerm(e.target.value),
-                    className: 'w-full h-9 px-3 py-2 border border-purple-300 rounded-full text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200'
-                  })
-                ),
-
-                // Sorting tab group (below search bar) - show for both Text and Words tabs
+                // Sorting tab group (above search bar) - show for both Text and Words tabs
                 sortedExplanations.length > 0 && React.createElement('div', { className: 'mb-4' },
                   React.createElement('div', { className: 'inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 p-1 w-full' },
                     React.createElement('button', {
@@ -2303,6 +2289,17 @@ export default function MainApp() {
                       className: `flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-2 text-xs font-medium transition-all duration-200 ${sortBy === 'alphabetical' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-600 hover:text-purple-700'}`
                     }, 'Alphabetical order')
                   )
+                ),
+
+                // Search box for explanations (only show when there are explanations)
+                sortedExplanations.length > 0 && React.createElement('div', { className: 'mb-4' },
+                  React.createElement('input', {
+                    type: 'text',
+                    placeholder: 'Search word ...',
+                    value: explanationSearchTerm,
+                    onChange: (e) => setExplanationSearchTerm(e.target.value),
+                    className: 'w-full h-9 px-3 py-2 border border-purple-300 rounded-full text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200'
+                  })
                 ),
 
 
