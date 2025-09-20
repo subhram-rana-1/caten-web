@@ -1942,10 +1942,20 @@ export default function MainApp() {
                   React.createElement('svg', { className: 'w-3 h-3 mr-2 text-purple-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                     React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122' })
                   ),
-                  'Double click on the word to select'
+                  'Double click on a word to select'
                 ),
                 
-                // Sentence 2: Green background instruction - visible when there are explained words
+                // Sentence 2: Text segment selection instruction - visible when there is text
+                React.createElement('div', { 
+                  className: 'text-xs text-purple-600 italic flex items-center' 
+                }, 
+                  React.createElement('svg', { className: 'w-3 h-3 mr-2 text-purple-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                    React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 0h10m-9 0a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2M9 4h6' })
+                  ),
+                  'Select specific text segment to analyse only that segment'
+                ),
+                
+                // Sentence 3: Green background instruction - visible when there are explained words
                 textExplanations.length > 0 && React.createElement('div', { 
                   className: 'text-xs text-purple-600 italic flex items-center' 
                 }, 

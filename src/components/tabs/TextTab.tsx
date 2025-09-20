@@ -229,7 +229,7 @@ const TextTab: React.FC<TextTabProps> = ({
             exit={{ opacity: 0, y: -5 }}
             className="text-sm text-text-secondary"
           >
-            Double click on the word to select
+            Double click on a word to select
           </motion.div>
         )}
 
