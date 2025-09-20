@@ -301,9 +301,15 @@ export default function MainApp() {
 
     // Check if there's existing text data
     if (text.trim()) {
-      setDialogType('clearText');
-      setShowConfirmDialog(true);
-      setConfirmAction(() => () => {
+      // Reset dialog state first
+      setShowConfirmDialog(false);
+      setConfirmAction(null);
+      
+      // Use setTimeout to ensure state is reset before showing dialog
+      setTimeout(() => {
+        setDialogType('clearText');
+        setShowConfirmDialog(true);
+        setConfirmAction(() => () => {
         // Clear text data and proceed with image processing
         setText('');
         setSelectedWords([]);
@@ -318,13 +324,14 @@ export default function MainApp() {
         setSmartExplainPhase('selecting');
         setManualWords([]);
         
-        // Store the file and show crop canvas
-        setUploadedImageFile(file);
-        setImagePreviewUrl(URL.createObjectURL(file));
-        setShowCropCanvas(true);
-        setShowConfirmDialog(false);
-        setConfirmAction(null);
-      });
+          // Store the file and show crop canvas
+          setUploadedImageFile(file);
+          setImagePreviewUrl(URL.createObjectURL(file));
+          setShowCropCanvas(true);
+          setShowConfirmDialog(false);
+          setConfirmAction(null);
+        });
+      }, 10);
       return;
     }
 
@@ -1701,16 +1708,20 @@ export default function MainApp() {
                           key: word, 
                           className: `inline-flex items-center px-3 py-1 rounded-full text-xs font-medium transition-colors duration-200 ${
                             isExplained 
-                              ? 'bg-green-100 text-green-700' 
+                              ? 'bg-green-100 text-green-700 cursor-pointer hover:bg-green-200' 
                               : 'bg-purple-100 text-purple-700'
-                          }` 
+                          }`,
+                          onClick: isExplained ? () => handleExplainedWordClick(word) : undefined
                         },
                           word,
                           React.createElement('button', {
-                            onClick: () => setManualWords(prev => prev.filter(w => w !== word)),
+                            onClick: (e) => {
+                              e.stopPropagation(); // Prevent triggering the word click
+                              setManualWords(prev => prev.filter(w => w !== word));
+                            },
                             className: `ml-2 w-4 h-4 rounded-full flex items-center justify-center transition-colors duration-200 ${
                               isExplained 
-                                ? 'hover:bg-green-200' 
+                                ? 'hover:bg-green-300' 
                                 : 'hover:bg-purple-200'
                             }`
                           }, '×')
@@ -2030,7 +2041,7 @@ export default function MainApp() {
       title: dialogType === 'clearText' ? 'You will lose all data in TEXT tab. Are you sure?' : 
              dialogType === 'clearExplanations' ? 'Clear all explanations?' : 
              'Clear existing data?',
-      description: dialogType === 'clearText' ? 'All text and explanations will be cleared. Are you sure?' :
+      description: dialogType === 'clearText' ? '' :
                   dialogType === 'clearExplanations' ? 'All words and explanations will be cleared. Are you sure?' :
                   'All existing data will be erased. Do you still want to start fresh?',
       confirmText: dialogType === 'clearText' ? 'Yes, clear text' :
@@ -2046,6 +2057,17 @@ export default function MainApp() {
       onCancel: () => {
         setShowConfirmDialog(false);
         setConfirmAction(null);
+        // Reset file input to allow re-uploading the same file
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        // Reset any uploaded file state
+        setUploadedImageFile(null);
+        if (imagePreviewUrl) {
+          URL.revokeObjectURL(imagePreviewUrl);
+          setImagePreviewUrl(null);
+        }
+        setShowCropCanvas(false);
       }
     })
   );
