@@ -37,6 +37,14 @@ export default function MainApp() {
   const [textExplainedWordNames, setTextExplainedWordNames] = useState<Set<string>>(new Set());
   const [wordsExplainedWordNames, setWordsExplainedWordNames] = useState<Set<string>>(new Set());
   
+  // WebSocket state management
+  const [websocket, setWebsocket] = useState<WebSocket | null>(null);
+  const [websocketTrigger, setWebsocketTrigger] = useState<{
+    text: string;
+    importantWords: any[];
+    currentTab: string;
+  } | null>(null);
+  
   // Efficient word-to-index mappings for O(1) lookups
   const [textWordToIndexMap, setTextWordToIndexMap] = useState<Map<string, number>>(new Map());
   const [wordsWordToIndexMap, setWordsWordToIndexMap] = useState<Map<string, number>>(new Map());
@@ -172,6 +180,15 @@ export default function MainApp() {
       }
     };
   }, [processingIntervalRef]);
+
+  // Cleanup WebSocket on unmount
+  useEffect(() => {
+    return () => {
+      if (websocket) {
+        websocket.close();
+      }
+    };
+  }, [websocket]);
 
 
 
@@ -999,7 +1016,7 @@ export default function MainApp() {
     }
   };
 
-  // Explain functionality with SSE streaming
+  // Explain functionality with WebSocket streaming
   const handleExplainWords = async () => {
     console.log('handleExplainWords called with selectedWords:', selectedWords);
     console.log('handleExplainWords called with manualWords:', manualWords);
@@ -1054,199 +1071,34 @@ export default function MainApp() {
     loadingStates.setIsCompleted(false);
     loadingStates.setIsPreparingExplanations(true);
 
-    try {
-      // Determine the correct text to send to API
-      const apiText = selectedWords.length > 0 
-        ? text // Use original text for selected words
-        : wordsToExplain.map(w => w.word).join(' '); // Use concatenated words for manual words
+    // Determine the correct text to send to API
+    const apiText = selectedWords.length > 0 
+      ? text // Use original text for selected words
+      : wordsToExplain.map(w => w.word).join(' '); // Use concatenated words for manual words
 
-      console.log('Making API call to /api/v1/words-explanation');
-      console.log('API text:', apiText);
-      console.log('Words to explain:', wordsToExplain);
+    console.log('Triggering WebSocket connection for manual word explanation...');
+    console.log('API text:', apiText);
+    console.log('Words to explain:', wordsToExplain);
 
-      const response = await fetch('/api/v1/words-explanation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: apiText,
-          important_words_location: wordsToExplain,
-        }),
-        signal: controller.signal, // Add abort signal
-      });
-
-      console.log('API response status:', response.status);
-
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response body');
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            
-            if (data === '[DONE]') {
-              // Show green tick and "COMPLETED" message
-              loadingStates.setIsStreaming(false);
-              loadingStates.setIsCompleted(true);
-              loadingStates.setIsPreparingExplanations(false);
-              // Mark words as explained (change from purple to green background)
-              setExplainedWords(prev => [...prev, ...wordsToExplain]);
-              
-              // Update tab-specific explained word names for highlighting
-              if (currentTab === 'text') {
-                setTextExplainedWordNames(prev => {
-                  const newSet = new Set(prev);
-                  wordsToExplain.forEach((word: any) => newSet.add(word.word));
-                  return newSet;
-                });
-              } else if (currentTab === 'words') {
-                setWordsExplainedWordNames(prev => {
-                  const newSet = new Set(prev);
-                  wordsToExplain.forEach((word: any) => newSet.add(word.word));
-                  return newSet;
-                });
-              }
-              
-              loadingStates.setIsExplaining(false);
-              setSelectedWords([]); // Clear selected words as they are now explained
-              setAbortController(null);
-              // Ensure all cards start collapsed
-              setExpandedCards(new Set());
-              toast.success('All explanations completed!');
-              return;
-            }
-
-            try {
-              const parsed = JSON.parse(data);
-              console.log('Received SSE data:', parsed); // Debug log
-              
-              // Clear preparing state when we start receiving data
-              loadingStates.setIsPreparingExplanations(false);
-              
-              // Handle both word_info (singular) and words_info (plural) formats
-              if (parsed.word_info) {
-                // Single word format from backend - process immediately
-                const newInfo = parsed.word_info;
-                console.log('Processing single word explanation for:', newInfo.word);
-                
-                // Check if we already have this word in the current tab's explanations
-                const currentExplanations = currentTab === 'text' ? textExplanationsRef.current : wordsExplanationsRef.current;
-                const existingIndex = currentExplanations.findIndex(exp => exp.word === newInfo.word);
-                
-                if (existingIndex === -1) {
-                  // New word, add it immediately using the working function
-                  addExplanationImmediately(newInfo, currentTab as 'text' | 'words');
-                } else {
-                  // Word exists, update it
-                  console.log('Updating explanation for:', newInfo.word);
-                  if (currentTab === 'text') {
-                    textExplanationsRef.current[existingIndex] = newInfo;
-                    setTextExplanations([...textExplanationsRef.current]);
-                  } else {
-                    wordsExplanationsRef.current[existingIndex] = newInfo;
-                    setWordsExplanations([...wordsExplanationsRef.current]);
-                  }
-                  setUpdateCounter(prev => prev + 1);
-                }
-                
-                // Mark word as explained
-                setExplainedWords(prev => {
-                  const existing = [...prev];
-                  const newWord = {
-                    word: newInfo.word,
-                    index: newInfo.location?.index || 0,
-                    length: newInfo.location?.length || newInfo.word.length,
-                  };
-                  
-                  if (!existing.some(exp => exp.word === newWord.word)) {
-                    existing.push(newWord);
-                  }
-                  return existing;
-                });
-                
-              } else if (parsed.words_info && Array.isArray(parsed.words_info)) {
-                // Multiple words format (fallback) - process each word individually
-                parsed.words_info.forEach((newInfo: any, index: number) => {
-                  console.log('Processing explanation for:', newInfo.word);
-                  
-                  // Check if we already have this word in the current tab's explanations
-                  const currentExplanations = currentTab === 'text' ? textExplanationsRef.current : wordsExplanationsRef.current;
-                  const existingIndex = currentExplanations.findIndex(exp => exp.word === newInfo.word);
-                  
-                  if (existingIndex === -1) {
-                    // New word, add it immediately using the working function
-                    addExplanationImmediately(newInfo, currentTab as 'text' | 'words');
-                  } else {
-                    // Word exists, update it
-                    console.log('Updating explanation for:', newInfo.word);
-                    if (currentTab === 'text') {
-                      textExplanationsRef.current[existingIndex] = newInfo;
-                      setTextExplanations([...textExplanationsRef.current]);
-                    } else {
-                      wordsExplanationsRef.current[existingIndex] = newInfo;
-                      setWordsExplanations([...wordsExplanationsRef.current]);
-                    }
-                    setUpdateCounter(prev => prev + 1);
-                  }
-                  
-                  // Mark word as explained
-                  setExplainedWords(prev => {
-                    const existing = [...prev];
-                    const newWord = {
-                      word: newInfo.word,
-                      index: newInfo.location?.index || 0,
-                      length: newInfo.location?.length || newInfo.word.length,
-                    };
-                    
-                    if (!existing.some(exp => exp.word === newWord.word)) {
-                      existing.push(newWord);
-                    }
-                    return existing;
-                  });
-                });
-              } else {
-                console.warn('Invalid data format:', parsed);
-              }
-            } catch (parseError) {
-              console.warn('Error parsing SSE data:', parseError);
-            }
-          }
-        }
-      }
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        // User stopped the stream
-        loadingStates.setIsStreaming(false);
-        loadingStates.setIsCompleted(true);
-        loadingStates.setIsExplaining(false);
-        loadingStates.setIsPreparingExplanations(false);
-        setAbortController(null);
-        toast.info('Explanation stopped by user');
-      } else {
-        console.error('Error explaining words:', error);
-        showError('Failed to generate explanations. Please try again.');
-        loadingStates.setIsExplaining(false);
-        loadingStates.setIsStreaming(false);
-        loadingStates.setIsPreparingExplanations(false);
-        setAbortController(null);
-      }
-    }
+    // Set the trigger to start WebSocket connection
+    setWebsocketTrigger({
+      text: apiText,
+      importantWords: wordsToExplain,
+      currentTab
+    });
   };
 
   // Stop streaming function
   const handleStopStreaming = () => {
+    // Close WebSocket connection if open
+    if (websocket) {
+      websocket.close();
+      setWebsocket(null);
+    }
+    
+    // Reset WebSocket trigger
+    setWebsocketTrigger(null);
+    
     if (abortController) {
       abortController.abort();
       setIsStreaming(false);
@@ -1321,150 +1173,18 @@ export default function MainApp() {
       setSelectedWords(importantWords);
       console.log('Words marked as selected:', importantWords);
 
-      // Step 3: Make API call to words explanation endpoint
-      console.log('Making API call to words explanation...');
+      // Step 3: Trigger WebSocket connection for words explanation
+      console.log('Triggering WebSocket connection for words explanation...');
       loadingStates.setSmartExplainPhase('explaining');
-
-      // Don't set isExplaining to true here - keep isSmartExplaining true instead
       loadingStates.setIsStreaming(true);
       loadingStates.setIsCompleted(false);
 
-      const explanationResponse = await fetch('/api/v1/words-explanation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: text,
-          important_words_location: importantWords,
-        }),
-        signal: controller.signal,
+      // Set the trigger to start WebSocket connection
+      setWebsocketTrigger({
+        text,
+        importantWords,
+        currentTab
       });
-
-      console.log('Explanation API response status:', explanationResponse.status);
-
-      if (!explanationResponse.ok) throw new Error(`HTTP error! status: ${explanationResponse.status}`);
-
-      const reader = explanationResponse.body?.getReader();
-      if (!reader) throw new Error('No response body');
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            
-            if (data === '[DONE]') {
-              // Show green tick and "COMPLETED" message
-              loadingStates.setIsStreaming(false);
-              loadingStates.setIsCompleted(true);
-              // Mark words as explained (change from purple to green background)
-              setExplainedWords(prev => [...prev, ...importantWords]);
-              
-              // Update tab-specific explained word names for highlighting
-              if (currentTab === 'text') {
-                setTextExplainedWordNames(prev => {
-                  const newSet = new Set(prev);
-                  importantWords.forEach((word: any) => newSet.add(word.word));
-                  return newSet;
-                });
-              } else if (currentTab === 'words') {
-                setWordsExplainedWordNames(prev => {
-                  const newSet = new Set(prev);
-                  importantWords.forEach((word: any) => newSet.add(word.word));
-                  return newSet;
-                });
-              }
-              
-              // Keep isSmartExplaining true until the very end
-              setSelectedWords([]); // Clear selected words as they are now explained
-              setAbortController(null);
-              loadingStates.setIsSmartExplaining(false);
-              loadingStates.setSmartExplainPhase('idle');
-              // Ensure all cards start collapsed
-              setExpandedCards(new Set());
-              toast.success('All explanations completed!');
-              return;
-            }
-
-            try {
-              const parsed = JSON.parse(data);
-              console.log('Received SSE data:', parsed);
-              
-              // Handle both word_info (singular) and words_info (plural) formats
-              if (parsed.word_info) {
-                // Single word format from backend - process immediately
-                const newInfo = parsed.word_info;
-                console.log('Processing single word explanation for:', newInfo.word);
-                
-                // Check if we already have this word in the current tab's explanations
-                const currentExplanations = currentTab === 'text' ? textExplanationsRef.current : wordsExplanationsRef.current;
-                const existingIndex = currentExplanations.findIndex(exp => exp.word === newInfo.word);
-                
-                if (existingIndex === -1) {
-                  // New word, add it immediately using the working function
-                  addExplanationImmediately(newInfo, currentTab as 'text' | 'words');
-                } else {
-                  // Word exists, update it
-                  console.log('Updating explanation for:', newInfo.word);
-                  if (currentTab === 'text') {
-                    textExplanationsRef.current[existingIndex] = newInfo;
-                    setTextExplanations([...textExplanationsRef.current]);
-                  } else {
-                    wordsExplanationsRef.current[existingIndex] = newInfo;
-                    setWordsExplanations([...wordsExplanationsRef.current]);
-                  }
-                  setUpdateCounter(prev => prev + 1);
-                }
-                
-                // Mark word as explained
-                setExplainedWords(prev => {
-                  const existing = [...prev];
-                  const newWord = {
-                    word: newInfo.word,
-                    index: newInfo.location?.index || 0,
-                    length: newInfo.location?.length || newInfo.word.length,
-                  };
-                  
-                  if (!existing.some(exp => exp.word === newWord.word)) {
-                    existing.push(newWord);
-                  }
-                  return existing;
-                });
-              } else if (parsed.words_info && Array.isArray(parsed.words_info)) {
-                // Multiple words format from backend
-                console.log('Processing multiple word explanations:', parsed.words_info);
-                parsed.words_info.forEach((wordInfo: any) => {
-                  const currentExplanations = currentTab === 'text' ? textExplanationsRef.current : wordsExplanationsRef.current;
-                  const existingIndex = currentExplanations.findIndex(exp => exp.word === wordInfo.word);
-                  
-                  if (existingIndex === -1) {
-                    addExplanationImmediately(wordInfo, currentTab as 'text' | 'words');
-                  } else {
-                    if (currentTab === 'text') {
-                      textExplanationsRef.current[existingIndex] = wordInfo;
-                      setTextExplanations([...textExplanationsRef.current]);
-                    } else {
-                      wordsExplanationsRef.current[existingIndex] = wordInfo;
-                      setWordsExplanations([...wordsExplanationsRef.current]);
-                    }
-                    setUpdateCounter(prev => prev + 1);
-                  }
-                });
-              }
-            } catch (parseError) {
-              console.error('Error parsing SSE data:', parseError);
-            }
-          }
-        }
-      }
     } catch (error) {
       console.error('Error in smart explain:', error);
       
@@ -1482,6 +1202,175 @@ export default function MainApp() {
       setAbortController(null);
     }
   };
+
+  // useEffect to handle WebSocket connection
+  useEffect(() => {
+    if (!websocketTrigger) return;
+
+    const { text, importantWords, currentTab } = websocketTrigger;
+    const loadingStates = getCurrentTabLoadingStates();
+
+    console.log('Setting up WebSocket for words explanation...');
+
+    // Close existing WebSocket if any
+    if (websocket) {
+      websocket.close();
+    }
+
+    // Create new WebSocket connection
+    const ws = new WebSocket('ws://localhost:8000/api/v1/words-explanation-v2');
+    setWebsocket(ws);
+
+    ws.onopen = function(event) {
+      console.log('WebSocket connected! Sending request...');
+      
+      // Send request data
+      const requestData = {
+        text: text,
+        important_words_location: importantWords
+      };
+
+      ws.send(JSON.stringify(requestData));
+      console.log('Request sent to WebSocket:', requestData);
+    };
+
+    ws.onmessage = function(event) {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('Received WebSocket data:', data);
+        
+        // Check for completion message
+        if (data.status === 'completed') {
+          console.log('✅ ' + data.message);
+          loadingStates.setIsStreaming(false);
+          loadingStates.setIsCompleted(true);
+          // Mark words as explained (change from purple to green background)
+          setExplainedWords(prev => [...prev, ...importantWords]);
+          
+          // Update tab-specific explained word names for highlighting
+          if (currentTab === 'text') {
+            setTextExplainedWordNames(prev => {
+              const newSet = new Set(prev);
+              importantWords.forEach((word: any) => newSet.add(word.word));
+              return newSet;
+            });
+          } else if (currentTab === 'words') {
+            setWordsExplainedWordNames(prev => {
+              const newSet = new Set(prev);
+              importantWords.forEach((word: any) => newSet.add(word.word));
+              return newSet;
+            });
+          }
+          
+          // Keep isSmartExplaining true until the very end
+          setSelectedWords([]); // Clear selected words as they are now explained
+          setAbortController(null);
+          loadingStates.setIsSmartExplaining(false);
+          loadingStates.setSmartExplainPhase('idle');
+          // Ensure all cards start collapsed
+          setExpandedCards(new Set());
+          toast.success('All explanations completed!');
+          
+          // Close WebSocket and reset trigger
+          ws.close();
+          setWebsocket(null);
+          setWebsocketTrigger(null);
+          return;
+        }
+        
+        // Check for error message
+        if (data.error_code) {
+          console.error('❌ Error: ' + data.error_code + ' - ' + data.error_message);
+          showError('Error: ' + data.error_code + ' - ' + data.error_message);
+          loadingStates.setIsSmartExplaining(false);
+          loadingStates.setIsStreaming(false);
+          loadingStates.setSmartExplainPhase('idle');
+          setAbortController(null);
+          ws.close();
+          setWebsocket(null);
+          setWebsocketTrigger(null);
+          return;
+        }
+        
+        // Process word explanation
+        if (data.word_info) {
+          const wordInfo = data.word_info;
+          console.log('Processing word explanation for:', wordInfo.word);
+          
+          // Check if we already have this word in the current tab's explanations
+          const currentExplanations = currentTab === 'text' ? textExplanationsRef.current : wordsExplanationsRef.current;
+          const existingIndex = currentExplanations.findIndex(exp => exp.word === wordInfo.word);
+          
+          if (existingIndex === -1) {
+            // New word, add it immediately using the working function
+            addExplanationImmediately(wordInfo, currentTab as 'text' | 'words');
+          } else {
+            // Word exists, update it
+            console.log('Updating explanation for:', wordInfo.word);
+            if (currentTab === 'text') {
+              textExplanationsRef.current[existingIndex] = wordInfo;
+              setTextExplanations([...textExplanationsRef.current]);
+            } else {
+              wordsExplanationsRef.current[existingIndex] = wordInfo;
+              setWordsExplanations([...wordsExplanationsRef.current]);
+            }
+            setUpdateCounter(prev => prev + 1);
+          }
+          
+          // Mark word as explained
+          setExplainedWords(prev => {
+            const existing = [...prev];
+            const newWord = {
+              word: wordInfo.word,
+              index: wordInfo.location?.index || 0,
+              length: wordInfo.location?.length || wordInfo.word.length,
+            };
+            
+            if (!existing.some(exp => exp.word === newWord.word)) {
+              existing.push(newWord);
+            }
+            return existing;
+          });
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+        showError('Error parsing response from server');
+      }
+    };
+
+    ws.onclose = function(event) {
+      console.log('WebSocket connection closed');
+      setWebsocket(null);
+      
+      if (event.code !== 1000) {
+        console.error('❌ Connection closed unexpectedly (code: ' + event.code + ')');
+        showError('Connection closed unexpectedly');
+        loadingStates.setIsSmartExplaining(false);
+        loadingStates.setIsStreaming(false);
+        loadingStates.setSmartExplainPhase('idle');
+        setAbortController(null);
+        setWebsocketTrigger(null);
+      }
+    };
+
+    ws.onerror = function(error) {
+      console.error('WebSocket error:', error);
+      showError('WebSocket connection error occurred');
+      loadingStates.setIsSmartExplaining(false);
+      loadingStates.setIsStreaming(false);
+      loadingStates.setSmartExplainPhase('idle');
+      setAbortController(null);
+      setWebsocket(null);
+      setWebsocketTrigger(null);
+    };
+
+    // Cleanup function
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
+  }, [websocketTrigger]);
 
   // Unselect all words functionality
   const handleUnselectAllWords = () => {
