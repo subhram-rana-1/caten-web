@@ -2062,17 +2062,17 @@ export default function MainApp() {
                 React.createElement('button', {
                   ref: (el) => { tabRefs.current.image = el as HTMLButtonElement; },
                   onClick: () => handleTabChange('image'),
-                  className: `relative z-10 flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 text-lg font-normal transition-all duration-200 ${activeTab === 'image' ? 'text-white' : 'text-gray-600 hover:text-purple-700 hover:bg-purple-200'}`
+                  className: `relative z-10 flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 text-lg font-normal transition-all duration-200 hover:scale-105 ${activeTab === 'image' ? 'text-white' : 'text-gray-600 hover:text-purple-700 hover:bg-purple-200'}`
                 }, 'Image'),
                 React.createElement('button', {
                   ref: (el) => { tabRefs.current.text = el as HTMLButtonElement; },
                   onClick: () => handleTabChange('text'),
-                  className: `relative z-10 flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 text-lg font-normal transition-all duration-200 ${activeTab === 'text' ? 'text-white' : 'text-gray-600 hover:text-purple-700 hover:bg-purple-200'}`
+                  className: `relative z-10 flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 text-lg font-normal transition-all duration-200 hover:scale-105 ${activeTab === 'text' ? 'text-white' : 'text-gray-600 hover:text-purple-700 hover:bg-purple-200'}`
                 }, 'Text'),
                 React.createElement('button', {
                   ref: (el) => { tabRefs.current.words = el as HTMLButtonElement; },
                   onClick: () => handleTabChange('words'),
-                  className: `relative z-10 flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 text-lg font-normal transition-all duration-200 ${activeTab === 'words' ? 'text-white' : 'text-gray-600 hover:text-purple-700 hover:bg-purple-200'}`
+                  className: `relative z-10 flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 text-lg font-normal transition-all duration-200 hover:scale-105 ${activeTab === 'words' ? 'text-white' : 'text-gray-600 hover:text-purple-700 hover:bg-purple-200'}`
                 }, 'Words')
               )
             ),
@@ -2910,7 +2910,7 @@ export default function MainApp() {
                         })
                       )
                     ),
-                    React.createElement('h3', { className: 'text-lg font-medium text-gray-900 mb-2' }, 'No explanations yet'),
+                    React.createElement('h3', { className: 'text-lg font-medium text-gray-900 mb-2' }, 'No word meanings yet'),
                     // React.createElement('p', { className: 'text-sm text-gray-600' }, 
                     //   displayedTab === 'text' 
                     //     ? 'Paste text and get AI-powered explanations'
