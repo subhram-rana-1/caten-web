@@ -1929,8 +1929,14 @@ export default function MainApp() {
     React.createElement('div', { className: 'bg-gradient-to-br from-gray-50 via-white to-purple-25 pt-6 pb-0 px-4' },
       React.createElement('div', { className: 'max-w-7xl mx-auto text-center' },
         React.createElement('div', { className: 'flex items-center justify-center space-x-3' },
-          React.createElement('span', { className: 'text-xl md:text-2xl lg:text-3xl text-gray-700 statement-text font-semibold' }, 'Master vocabulary with AI-powered explanations'),
-          React.createElement('div', { className: 'text-2xl md:text-3xl' }, '🧠')
+          React.createElement('span', { className: 'text-2xl md:text-3xl lg:text-4xl text-gray-700 statement-text font-medium' }, 'Master English Vocabulary With AI'),
+          React.createElement('div', { className: 'text-2xl md:text-3xl' },
+            React.createElement('img', {
+              src: '/resources/brain.png',
+              alt: 'AI Brain',
+              className: 'w-12 h-12 object-contain'
+            })
+          )
         )
       )
     ),
