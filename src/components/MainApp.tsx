@@ -1926,16 +1926,53 @@ export default function MainApp() {
     React.createElement(Header),
     
     // Influencing statement with colorful brain icon
-    React.createElement('div', { className: 'bg-gradient-to-br from-gray-50 via-white to-purple-25 pt-6 pb-0 px-4' },
+    React.createElement('div', { className: 'bg-gradient-to-br from-gray-50 via-white to-purple-25 pt-8 pb-6 px-4' },
       React.createElement('div', { className: 'max-w-7xl mx-auto text-center' },
-        React.createElement('div', { className: 'flex items-center justify-center space-x-3' },
-          React.createElement('span', { className: 'text-2xl md:text-3xl lg:text-4xl text-gray-700 statement-text font-medium' }, 'Master English Vocabulary With AI'),
-          React.createElement('div', { className: 'text-2xl md:text-3xl' },
+        // Main tagline with AI emphasis
+        React.createElement('div', { className: 'flex items-center justify-center space-x-3 mb-4' },
+          React.createElement('h1', { 
+            className: 'text-3xl md:text-4xl lg:text-5xl font-semibold text-gray-800 leading-tight',
+            style: { 
+              fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              fontSize: 'clamp(1.875rem, 4vw, 3rem)'
+            }
+          }, 
+            // Word-by-word hover effects
+            ['Master', 'English', 'Vocabulary', 'With'].map((word, index) => 
+              React.createElement('span', {
+                key: index,
+                className: 'inline-block hover:scale-110 transition-transform duration-300 mx-1',
+                style: { transition: 'transform 0.3s ease' }
+              }, word)
+            ),
+            ' ',
+            React.createElement('span', { 
+              className: 'inline-block hover:scale-110 transition-transform duration-300 mx-1 text-purple-600 font-bold',
+              style: { color: '#8B5CF6', transition: 'transform 0.3s ease' }
+            }, 'AI')
+          ),
+          React.createElement('div', { className: 'text-3xl md:text-4xl lg:text-5xl' },
             React.createElement('img', {
               src: '/resources/brain.png',
               alt: 'AI Brain',
-              className: 'w-12 h-12 object-contain'
+              className: 'w-14 h-14 md:w-16 md:h-16 object-contain hover:scale-110 transition-transform duration-300'
             })
+          )
+        ),
+        // Sub-tagline
+        React.createElement('p', { 
+          className: 'text-lg md:text-xl text-gray-600 font-light max-w-2xl mx-auto leading-relaxed',
+          style: { 
+            fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+          }
+        }, 
+          // Word-by-word hover effects for sub-tagline
+          ['Upload', 'texts', 'or', 'images.', 'Learn', 'new', 'words', 'instantly.'].map((word, index) => 
+            React.createElement('span', {
+              key: index,
+              className: 'inline-block hover:scale-110 transition-all duration-300 px-1 py-1 rounded-full hover:bg-purple-100',
+              style: { transition: 'all 0.3s ease' }
+            }, word)
           )
         )
       )
