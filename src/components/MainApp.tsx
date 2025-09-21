@@ -2167,8 +2167,8 @@ export default function MainApp() {
               fontSize: 'clamp(1.875rem, 4vw, 3rem)'
             }
           }, 
-            // Word-by-word hover effects
-            ['Master', 'English', 'Vocabulary', 'With'].map((word, index) => 
+            // Word-by-word hover effects 
+            ['Enhance', 'Vocabulary', 'With'].map((word, index) => 
               React.createElement('span', {
                 key: index,
                 className: 'inline-block hover:scale-110 transition-transform duration-300 mx-1',
@@ -3043,7 +3043,7 @@ export default function MainApp() {
           React.createElement('div', { className: 'bg-white rounded-2xl shadow-lg shadow-purple-100 p-6 h-[600px] flex flex-col' },
             // Header
             React.createElement('div', { className: 'bg-purple-500 rounded-lg h-10 flex items-center justify-center mb-6' },
-              React.createElement('h3', { className: 'text-lg font-normal text-white' }, 'Explanations')
+              React.createElement('h3', { className: 'text-lg font-normal text-white' }, displayedTab === 'text' ? 'Contextual Explanations' : 'Explanations')
             ),
 
             // Text/Words tab content - explanations
