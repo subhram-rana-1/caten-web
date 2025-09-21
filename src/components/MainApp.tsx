@@ -411,6 +411,9 @@ export default function MainApp() {
           newSet.delete(word);
           return newSet;
         });
+        
+        // Remove from manualWords to remove the word from the left side
+        setManualWords(prev => prev.filter(w => w !== word));
       }
     }
   };
@@ -1589,24 +1592,62 @@ export default function MainApp() {
   const handleDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const selection = window.getSelection();
     if (selection && selection.toString().trim()) {
-      const word = selection.toString().trim().toLowerCase().replace(/[.,!?;:]/g, '');
+      // Get the actual selected text
+      const selectedText = selection.toString().trim();
       
-      // Find word in text and create proper WordLocation
-      const wordStart = text.toLowerCase().indexOf(word);
-      if (wordStart !== -1) {
+      // Find the position of the selected text in the original text
+      const range = selection.getRangeAt(0);
+      const textNode = range.startContainer;
+      const startOffset = range.startOffset;
+      
+      // Calculate the actual position in the full text
+      let actualStart = 0;
+      if (textCanvasRef.current) {
+        let walker = document.createTreeWalker(
+          textCanvasRef.current,
+          NodeFilter.SHOW_TEXT,
+          null
+        );
+      
+        let node;
+        while (node = walker.nextNode()) {
+          if (node === textNode) {
+            actualStart += startOffset;
+            break;
+          }
+          actualStart += node.textContent?.length || 0;
+        }
+      }
+      
+      // Find word boundaries using proper regex (only word characters)
+      let start = actualStart;
+      let end = actualStart;
+      
+      // Move start backward to find word start (only word characters)
+      while (start > 0 && /\w/.test(text[start - 1])) {
+        start--;
+      }
+      
+      // Move end forward to find word end (only word characters)
+      while (end < text.length && /\w/.test(text[end])) {
+        end++;
+      }
+      
+      if (start < end) {
+        const word = text.slice(start, end);
         const wordLocation = {
-          word,
-          index: wordStart,
-          length: word.length,
+          word: word.toLowerCase(),
+          index: start,
+          length: end - start,
         };
         
-        const isSelected = selectedWords.some(w => w.word === word);
+        const isSelected = selectedWords.some(w => w.index === start && w.length === end - start);
         
         if (isSelected) {
-          setSelectedWords(prev => prev.filter(w => w.word !== word));
+          setSelectedWords(prev => prev.filter(w => !(w.index === start && w.length === end - start)));
         } else {
           // Check if word is already explained
-          if (textExplainedWordNames.has(word)) {
+          if (textExplainedWordNames.has(word.toLowerCase())) {
             showError("This word has already been explained");
             return;
           }
@@ -1722,15 +1763,77 @@ export default function MainApp() {
     }
   };
 
-  // Handle clicking on explained words in Text tab - provides unselect functionality
+  // Handle clicking on explained words in Text tab - scroll to explanation and expand
   const handleTextExplainedWordClick = (word: string) => {
-    // First, scroll to the explanation (same as handleExplainedWordClick)
-    handleExplainedWordClick(word);
+    console.log('=== TEXT TAB WORD CLICK DEBUG ===');
+    console.log('Clicked on word:', word);
+    console.log('Current displayedTab:', displayedTab);
+    console.log('textExplanations:', textExplanations);
+    console.log('wordsExplanations:', wordsExplanations);
     
-    // Then, provide unselect functionality by removing from selectedWords
-    // This will remove the green highlighting
-    setSelectedWords(prev => prev.filter(w => w.word !== word));
-    toast.success(`Word "${word}" unselected`);
+    // Find the explanation in the appropriate explanations array based on current tab
+    const currentExplanations = displayedTab === 'text' ? textExplanations : wordsExplanations;
+    const explanation = currentExplanations.find(exp => 
+      exp && exp.word && exp.word.toLowerCase() === word.toLowerCase()
+    );
+    
+    if (!explanation) {
+      console.log('❌ Word not found in current explanations');
+      console.log('Searched in:', displayedTab === 'text' ? 'textExplanations' : 'wordsExplanations');
+      return;
+    }
+    
+    console.log('✅ Found explanation:', explanation);
+    
+    // Expand the card using the word from the explanation
+    setExpandedCards(new Set([explanation.word]));
+    
+    // Scroll to explanation section
+    if (explanationSectionRef.current) {
+      console.log('✅ explanationSectionRef found, scrolling...');
+      explanationSectionRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      });
+
+      // After a short delay, scroll within the explanation container to bring the specific word to top
+      setTimeout(() => {
+        if (explanationSectionRef.current) {
+          // Find the specific explanation card by data-word attribute
+          const explanationCards = explanationSectionRef.current.querySelectorAll('[data-word]');
+          console.log('Found explanation cards:', explanationCards.length);
+          console.log('Card data-words:', Array.from(explanationCards).map(card => card.getAttribute('data-word')));
+          
+          const targetCard = Array.from(explanationCards).find(card => 
+            card.getAttribute('data-word')?.toLowerCase() === word.toLowerCase()
+          ) as HTMLElement;
+          
+          if (targetCard) {
+            console.log('✅ Target card found');
+            console.log('Target card data-word:', targetCard.getAttribute('data-word'));
+            
+            // Get the explanation container's scroll position
+            const container = explanationSectionRef.current;
+            const containerRect = container.getBoundingClientRect();
+            const cardRect = targetCard.getBoundingClientRect();
+            
+            // Calculate the scroll position to bring the card to the top
+            const scrollTop = container.scrollTop + (cardRect.top - containerRect.top);
+            
+            // Smooth scroll to the target card
+            container.scrollTo({
+              top: scrollTop,
+              behavior: 'smooth'
+            });
+            
+            console.log('✅ Scrolled to target card');
+          } else {
+            console.log('❌ Target card not found');
+            console.log('Available cards:', Array.from(explanationCards).map(card => card.getAttribute('data-word')));
+          }
+        }
+      }, 100);
+    }
   };
 
   // Get more explanations with loading state
@@ -1847,52 +1950,225 @@ export default function MainApp() {
   const renderHighlightedText = () => {
     if (!text) return '';
 
-    return text.split(/(\s+)/).map((word, index) => {
-      const cleanWord = word.trim().toLowerCase().replace(/[.,!?;:]/g, '');
-      if (!cleanWord) return React.createElement('span', { key: index }, word);
-
-      const isSelected = selectedWords.some(w => w.word === cleanWord);
-      const isExplained = textExplainedWordNames.has(cleanWord);
-      const isManualWord = manualWords.includes(cleanWord);
-      const isManualWordExplained = isManualWord && textExplainedWordNames.has(cleanWord);
-      const isSearchMatch = searchTerm && cleanWord.includes(searchTerm.toLowerCase());
-
-      let className = '';
-      if (isExplained || isManualWordExplained) {
-        // Light green background for explained words
-        className = 'bg-green-200 px-1 rounded cursor-pointer hover:bg-green-300 transition-colors';
-      } else if (isSelected || (isManualWord && !isManualWordExplained)) {
-        // Light purple background for selected/manual words not yet explained
-        className = 'bg-purple-200 px-1 rounded relative cursor-pointer hover:bg-purple-300 transition-colors';
-      } else if (isSearchMatch) {
-        // Yellow background for search matches
-        className = 'bg-yellow-200 px-1 rounded cursor-pointer hover:bg-yellow-300 transition-colors';
+    // Create a map of character positions to their highlighting state
+    const highlightMap = new Array(text.length).fill(null);
+    
+    // Mark explained words - check both textExplanations and textExplainedWordNames
+    textExplanations.forEach(explanation => {
+      if (explanation && explanation.wordLocation) {
+        const wordLocation = explanation.wordLocation;
+        for (let i = wordLocation.index; i < wordLocation.index + wordLocation.length; i++) {
+          highlightMap[i] = 'explained';
+        }
       }
+    });
+    
+    // Also mark words that are in textExplainedWordNames but might not have wordLocation
+    // This handles cases where words were explained but don't have proper wordLocation data
+    console.log('=== HIGHLIGHTING DEBUG ===');
+    console.log('textExplainedWordNames:', textExplainedWordNames);
+    console.log('text:', text);
+    
+    textExplainedWordNames.forEach(explainedWord => {
+      const wordLower = explainedWord.toLowerCase();
+      console.log('Processing word:', explainedWord, 'lowercase:', wordLower);
+      let startIndex = 0;
+      while (true) {
+        const index = text.toLowerCase().indexOf(wordLower, startIndex);
+        console.log('Found word at index:', index);
+        if (index === -1) break;
+        
+        // Check if this position is already marked as explained
+        let isAlreadyMarked = false;
+        for (let i = index; i < index + wordLower.length; i++) {
+          if (highlightMap[i] === 'explained') {
+            isAlreadyMarked = true;
+            break;
+          }
+        }
+        
+        if (!isAlreadyMarked) {
+          for (let i = index; i < index + wordLower.length; i++) {
+            highlightMap[i] = 'explained';
+          }
+          console.log('Marked word as explained:', explainedWord, 'at index:', index);
+        }
+        
+        startIndex = index + 1;
+      }
+    });
+    
+    // Mark selected words (only if not already explained)
+    selectedWords.forEach(wordLocation => {
+      if (wordLocation) {
+        const isAlreadyExplained = textExplanations.some(exp => 
+          exp && exp.wordLocation && 
+          exp.wordLocation.index === wordLocation.index && 
+          exp.wordLocation.length === wordLocation.length
+        );
+        
+        if (!isAlreadyExplained) {
+          for (let i = wordLocation.index; i < wordLocation.index + wordLocation.length; i++) {
+            highlightMap[i] = 'selected';
+          }
+        }
+      }
+    });
+    
+    // Mark manual words
+    manualWords.forEach(manualWord => {
+      const wordLower = manualWord.toLowerCase();
+      let startIndex = 0;
+      while (true) {
+        const index = text.toLowerCase().indexOf(wordLower, startIndex);
+        if (index === -1) break;
+        
+        const isAlreadyExplained = textExplanations.some(exp => 
+          exp && exp.wordLocation && 
+          exp.wordLocation.index === index && 
+          exp.wordLocation.length === wordLower.length
+        );
+        
+        if (!isAlreadyExplained) {
+          for (let i = index; i < index + wordLower.length; i++) {
+            if (highlightMap[i] === null) {
+              highlightMap[i] = 'manual';
+            }
+          }
+        }
+        
+        startIndex = index + 1;
+      }
+    });
+    
+    // Mark search matches
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      let startIndex = 0;
+      while (true) {
+        const index = text.toLowerCase().indexOf(searchLower, startIndex);
+        if (index === -1) break;
+        
+        for (let i = index; i < index + searchLower.length; i++) {
+          if (highlightMap[i] === null) {
+            highlightMap[i] = 'search';
+          }
+        }
+        
+        startIndex = index + 1;
+      }
+    }
 
-      if (className) {
-        return React.createElement('span', 
-          { 
-            key: index, 
-            className,
-            onClick: (isExplained || isManualWordExplained) ? () => handleTextExplainedWordClick(cleanWord) : undefined
-          },
-          word,
-          isSelected && !isExplained && React.createElement('button', 
-            {
+    // Build the highlighted text
+    const result = [];
+    let currentText = '';
+    let currentHighlight = null;
+    let key = 0;
+
+    console.log('=== BUILDING HIGHLIGHTED TEXT ===');
+    console.log('highlightMap:', highlightMap);
+
+    for (let i = 0; i <= text.length; i++) {
+      const char = i < text.length ? text[i] : '';
+      const highlight = i < text.length ? highlightMap[i] : null;
+      
+      if (highlight !== currentHighlight || i === text.length) {
+        // Process the accumulated text
+        if (currentText) {
+          console.log('Processing text:', currentText, 'with highlight:', currentHighlight);
+          if (currentHighlight === 'explained') {
+            // Capture the word text in a variable to avoid closure issues
+            const wordText = currentText;
+            console.log('Creating clickable span for word:', wordText);
+            
+            result.push(React.createElement('span', {
+              key: key++,
+              className: 'bg-green-200 px-1 rounded cursor-pointer hover:bg-green-300 transition-colors',
+              onClick: (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                console.log('=== TEXT TAB WORD CLICK DEBUG ===');
+                console.log('Clicked on word:', wordText);
+                console.log('textExplanations:', textExplanations);
+                console.log('textExplainedWordNames:', textExplainedWordNames);
+                
+                // Clean the wordText (remove extra whitespace and special characters)
+                const cleanWord = wordText.trim().replace(/[^\w]/g, '');
+                console.log('Clean word:', cleanWord);
+                
+                if (!cleanWord) {
+                  console.log('❌ Clean word is empty');
+                  return;
+                }
+                
+                // Find the explanation by word name (case-insensitive)
+                const explanation = textExplanations.find(exp => 
+                  exp && exp.word && exp.word.toLowerCase() === cleanWord.toLowerCase()
+                );
+                
+                if (explanation) {
+                  console.log('✅ Found explanation by word name:', explanation);
+                  handleTextExplainedWordClick(explanation.word);
+                } else {
+                  // Try to find by checking if the word is in textExplainedWordNames
+                  const explainedWord = Array.from(textExplainedWordNames).find(word => 
+                    word.toLowerCase() === cleanWord.toLowerCase()
+                  );
+                  
+                  if (explainedWord) {
+                    console.log('✅ Found word in textExplainedWordNames:', explainedWord);
+                    handleTextExplainedWordClick(explainedWord);
+                  } else {
+                    console.log('❌ Word not found in explanations');
+                    console.log('Available words in textExplainedWordNames:', Array.from(textExplainedWordNames));
+                    console.log('Available words in textExplanations:', textExplanations.map(exp => exp?.word));
+                  }
+                }
+              }
+            }, wordText));
+          } else if (currentHighlight === 'selected') {
+            result.push(React.createElement('span', {
+              key: key++,
+              className: 'bg-purple-200 px-1 rounded relative cursor-pointer hover:bg-purple-300 transition-colors'
+            }, currentText, React.createElement('button', {
               onClick: (e) => {
                 e.stopPropagation();
-                setSelectedWords(prev => prev.filter(w => w.word !== cleanWord));
+                const wordLocation = selectedWords.find(w => 
+                  text.slice(w.index, w.index + w.length) === currentText
+                );
+                if (wordLocation) {
+                  setSelectedWords(prev => prev.filter(w => !(w.index === wordLocation.index && w.length === wordLocation.length)));
+                }
               },
               className: 'absolute -top-1 -right-1 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600 leading-none',
               title: 'Remove word selection'
-            },
-            '×'
-          )
-        );
+            }, '×')));
+          } else if (currentHighlight === 'manual') {
+            result.push(React.createElement('span', {
+              key: key++,
+              className: 'bg-purple-200 px-1 rounded cursor-pointer hover:bg-purple-300 transition-colors'
+            }, currentText));
+          } else if (currentHighlight === 'search') {
+            result.push(React.createElement('span', {
+              key: key++,
+              className: 'bg-yellow-200 px-1 rounded cursor-pointer hover:bg-yellow-300 transition-colors'
+            }, currentText));
+          } else {
+            result.push(React.createElement('span', { key: key++ }, currentText));
+          }
+        }
+        
+        currentText = '';
+        currentHighlight = highlight;
       }
+      
+      if (i < text.length) {
+        currentText += char;
+      }
+    }
 
-      return React.createElement('span', { key: index }, word);
-    });
+    return result;
   };
 
   // Sort explanations based on selected option
@@ -2147,21 +2423,12 @@ export default function MainApp() {
                 React.createElement('div', { 
                   className: 'text-xs text-purple-600 italic flex items-center' 
                 }, 
-                  React.createElement('svg', { className: 'w-3 h-3 mr-2 text-purple-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                    React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122' })
+                  React.createElement('svg', { className: 'w-4 h-4 mr-2 text-purple-600 font-bold', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                    React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2.5, d: 'M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122' })
                   ),
-                  'Double click on a word to select'
+                  React.createElement('strong', {}, 'Double click on a word to select')
                 ),
                 
-                // Sentence 2: Text segment selection instruction - visible when there is text
-                React.createElement('div', { 
-                  className: 'text-xs text-purple-600 italic flex items-center' 
-                }, 
-                  React.createElement('svg', { className: 'w-3 h-3 mr-2 text-purple-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                    React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 0h10m-9 0a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2M9 4h6' })
-                  ),
-                  'Select specific text segment to analyse only that segment'
-                ),
                 
                 // Sentence 3: Green background instruction - visible when there are explained words
                 textExplanations.length > 0 && React.createElement('div', { 
@@ -2184,9 +2451,14 @@ export default function MainApp() {
                         ref: textCanvasRef,
                         className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap overflow-y-auto hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : isProcessingImage ? 'blur-sm' : ''}`,
                         onDoubleClick: handleDoubleClick
-                      }, renderHighlightedText()) : React.createElement('div', {
-                        className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap overflow-y-auto hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : isProcessingImage ? 'blur-sm' : ''}`,
-                      }, ''),
+                      }, renderHighlightedText()) : React.createElement('textarea', {
+                        ref: textCanvasRef,
+                        placeholder: 'Paste your text here (Don\'t write manually)...',
+                        value: text,
+                        onChange: (e) => setText((e.target as HTMLTextAreaElement).value),
+                        className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : isProcessingImage ? 'blur-sm' : ''}`,
+                        onDoubleClick: handleDoubleClick
+                      }),
                       
                       // Enhanced Image Processing Overlay for text canvas
                       isProcessingImage && React.createElement('div', { 
@@ -2477,7 +2749,7 @@ export default function MainApp() {
                     React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                       React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' })
                     ),
-                    isSmartSelecting ? 'Selecting...' : 'Smart select words'
+                    isSmartSelecting ? 'Selecting...' : 'Auto select hard words'
                   ),
                   
                   selectedWords.length > 0 && !getCurrentTabLoadingStates().isExplaining && !getCurrentTabLoadingStates().isSmartExplaining && React.createElement('button', {
@@ -2532,7 +2804,7 @@ export default function MainApp() {
                           React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' }),
                           React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 10V3L4 14h7v7l9-11h-7z' })
                         ),
-                        React.createElement('span', { className: 'relative z-10' }, getCurrentTabLoadingStates().isSmartExplaining ? 'Smart explaining...' : 'Smart explain')
+                        React.createElement('span', { className: 'relative z-10' }, getCurrentTabLoadingStates().isSmartExplaining ? 'Auto explaining hard words...' : 'Auto explain hard words')
                       )
                     ) :
                     // When no words selected: horizontal layout (side by side)
@@ -2561,7 +2833,7 @@ export default function MainApp() {
                           React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' }),
                           React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 10V3L4 14h7v7l9-11h-7z' })
                         ),
-                        React.createElement('span', { className: 'relative z-10' }, getCurrentTabLoadingStates().isSmartExplaining ? 'Smart explaining...' : 'Smart explain')
+                        React.createElement('span', { className: 'relative z-10' }, getCurrentTabLoadingStates().isSmartExplaining ? 'Auto explaining hard words...' : 'Auto explain hard words')
                       )
                     ),
                   
@@ -2627,6 +2899,18 @@ export default function MainApp() {
                   disabled: !manualWordInput.trim() || manualWords.includes(manualWordInput.trim().toLowerCase()),
                   className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-10 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50'
                 }, 'Add')
+              ),
+              
+              // Instruction for clicking on green words - only show when there are explained words
+              wordsExplanations.length > 0 && React.createElement('div', { 
+                className: 'text-xs text-purple-600 italic flex items-center mb-4' 
+              }, 
+                React.createElement('svg', { className: 'w-3 h-3 mr-2 text-green-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                  React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
+                ),
+                React.createElement('span', {}, 'Click on the word with '),
+                React.createElement('span', { className: 'bg-green-200 px-1 rounded' }, 'green color'),
+                React.createElement('span', {}, ' background to view explanation')
               ),
               
               // Word display area with scroll - takes up remaining space (with relative positioning for overlay)
@@ -2818,7 +3102,7 @@ export default function MainApp() {
                             React.createElement('button', {
                               onClick: (e) => {
                                 e.stopPropagation(); // Prevent triggering the card expansion
-                                deleteWordEfficiently(explanation.word, 'text');
+                                deleteWordEfficiently(explanation.word, displayedTab as 'text' | 'words');
                                 toast.success(`Word "${explanation.word}" and its explanation removed`);
                               },
                               className: 'w-5 h-5 rounded-full flex items-center justify-center transition-colors duration-200 hover:bg-red-100 ml-1 mr-2'
