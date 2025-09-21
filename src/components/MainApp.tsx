@@ -129,12 +129,14 @@ export default function MainApp() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [cropStart, setCropStart] = useState({ x: 0, y: 0, width: 100, height: 100 });
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [processingPhase, setProcessingPhase] = useState<'extracting' | 'hold-on' | 'almost-there'>('extracting');
   const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textCanvasRef = useRef<HTMLDivElement>(null);
   const explanationSectionRef = useRef<HTMLDivElement>(null);
+  const processingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const tabRefs = useRef<{ [key in TabType]: HTMLButtonElement | null }>({
     image: null,
     text: null,
@@ -157,6 +159,88 @@ export default function MainApp() {
       }
     };
   }, [imagePreviewUrl]);
+
+  // Cleanup processing timer on unmount
+  useEffect(() => {
+    return () => {
+      if (processingTimerRef.current) {
+        clearTimeout(processingTimerRef.current);
+      }
+    };
+  }, []);
+
+
+  // Get processing message based on current phase
+  const getProcessingMessage = () => {
+    const message = (() => {
+      switch (processingPhase) {
+        case 'extracting':
+          return 'Extracting text out of your image';
+        case 'hold-on':
+          return 'Please hold on, we are almost there';
+        case 'almost-there':
+          return "It's about to finish";
+        default:
+          return 'Extracting text out of your image';
+      }
+    })();
+    console.log('💬 getProcessingMessage called - phase:', processingPhase, 'message:', message);
+    return message;
+  };
+
+  // Get processing icon based on current phase
+  const getProcessingIcon = () => {
+    switch (processingPhase) {
+      case 'extracting':
+        // Document with text extraction icon
+        return React.createElement('svg', { 
+          className: 'w-6 h-6 text-white', 
+          fill: 'currentColor',
+          viewBox: '0 0 24 24' 
+        },
+          React.createElement('path', { 
+            d: 'M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z' 
+          }),
+          React.createElement('path', { 
+            d: 'M8,12H16V14H8V12M8,16H13V18H8V16',
+            className: 'opacity-70'
+          })
+        );
+      case 'hold-on':
+        // Clock/timer icon
+        return React.createElement('svg', { 
+          className: 'w-6 h-6 text-white', 
+          fill: 'currentColor',
+          viewBox: '0 0 24 24' 
+        },
+          React.createElement('path', { 
+            d: 'M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M16.2,16.2L11,13V7H12.5V12.2L17,14.9L16.2,16.2Z' 
+          })
+        );
+      case 'almost-there':
+        // Checkmark/almost done icon
+        return React.createElement('svg', { 
+          className: 'w-6 h-6 text-white', 
+          fill: 'currentColor',
+          viewBox: '0 0 24 24' 
+        },
+          React.createElement('path', { 
+            d: 'M9,20.42L2.79,14.21L5.62,11.38L9,14.77L18.88,4.88L21.71,7.71L9,20.42Z' 
+          })
+        );
+      default:
+        // Default document icon
+        return React.createElement('svg', { 
+          className: 'w-6 h-6 text-white', 
+          fill: 'currentColor',
+          viewBox: '0 0 24 24' 
+        },
+          React.createElement('path', { 
+            d: 'M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z' 
+          })
+        );
+    }
+  };
 
 
   // Clipboard paste functionality
@@ -607,19 +691,39 @@ export default function MainApp() {
   const handleCropExplain = async () => {
     if (!uploadedImageFile) return;
 
-    console.log('Starting image processing...');
+    console.log('🚀 handleCropExplain called - Starting image processing...');
     setIsLoading(true);
     setIsProcessingImage(true);
+    setProcessingPhase('extracting');
     setShowCropCanvas(false);
+    console.log('✅ State set - isProcessingImage: true, processingPhase: extracting');
     
     // Switch to text tab immediately
     setActiveTab('text');
     setDisplayedTab('text');
+    console.log('📱 Switched to text tab - activeTab: text, displayedTab: text');
     setTimeout(() => {
       updateSliderPosition('text');
     }, 50);
     
-    console.log('isProcessingImage set to true, switched to text tab');
+
+    // Start processing phase timers
+    console.log('⏰ Starting timers - will change to hold-on in 3s, almost-there in 6s, cleanup in 7s');
+    setTimeout(() => {
+      setProcessingPhase('hold-on');
+      console.log('🔄 Phase changed to: hold-on');
+      // Set the second message after 3 more seconds
+      setTimeout(() => {
+        setProcessingPhase('almost-there');
+        console.log('🔄 Phase changed to: almost-there');
+        // Clean up after minimum duration (7 seconds total)
+        setTimeout(() => {
+          console.log('🧹 Cleaning up processing states after minimum duration');
+          setIsProcessingImage(false);
+          setProcessingPhase('extracting');
+        }, 1000); // 1 second after "almost-there" message
+      }, 3000);
+    }, 3000); // After 3 seconds, show "Please hold on, we are almost there"
 
     try {
       // Create a canvas to apply crop and rotation
@@ -683,9 +787,11 @@ export default function MainApp() {
           console.error('Error processing cropped image:', error);
           showError('Failed to extract text from cropped image. Please try again.');
         } finally {
-          console.log('Image processing completed, resetting states');
+          console.log('Image processing completed, but keeping overlay visible for minimum duration');
           setIsLoading(false);
-          setIsProcessingImage(false);
+          // Don't reset isProcessingImage immediately - let the timers handle it
+          // setIsProcessingImage(false);
+          // setProcessingPhase('extracting');
           // Clean up
           setUploadedImageFile(null);
           if (imagePreviewUrl) {
@@ -703,6 +809,7 @@ export default function MainApp() {
       showError('Failed to extract text from image. Please try again.');
       setIsLoading(false);
       setIsProcessingImage(false);
+      setProcessingPhase('extracting');
     }
   };
 
@@ -2003,49 +2110,63 @@ export default function MainApp() {
 
               // Text Area with Smart Explain Overlay
               React.createElement('div', { className: 'relative flex flex-col flex-1' },
-                (text || isProcessingImage)
+                (() => {
+                  const shouldRender = (text || isProcessingImage || displayedTab === 'text');
+                  console.log('🎯 Text area render check - text:', !!text, 'isProcessingImage:', isProcessingImage, 'displayedTab:', displayedTab, 'shouldRender:', shouldRender);
+                  return shouldRender;
+                })()
                   ? React.createElement('div', { className: 'relative' },
                       text ? React.createElement('div', {
                         ref: textCanvasRef,
-                        className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap overflow-y-auto hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting || isProcessingImage ? 'blur-[0.5px]' : ''}`,
+                        className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap overflow-y-auto hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : isProcessingImage ? 'blur-sm' : ''}`,
                         onDoubleClick: handleDoubleClick
                       }, renderHighlightedText()) : React.createElement('div', {
-                        className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap overflow-y-auto hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting || isProcessingImage ? 'blur-[0.5px]' : ''}`,
+                        className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap overflow-y-auto hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : isProcessingImage ? 'blur-sm' : ''}`,
                       }, ''),
                       
-                      // Image Processing Overlay for text canvas
-                      isProcessingImage && React.createElement('div', { className: 'absolute inset-0 bg-white bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg' },
+                      // Enhanced Image Processing Overlay for text canvas
+                      (() => {
+                        console.log('🎨 Overlay render check - isProcessingImage:', isProcessingImage, 'will render overlay:', isProcessingImage);
+                        return isProcessingImage;
+                      })() && React.createElement('div', { className: 'absolute inset-0 bg-white bg-opacity-80 backdrop-blur-md flex items-center justify-center z-10 rounded-lg' },
                         React.createElement('div', { className: 'text-center' },
-                          React.createElement('div', { className: 'mb-4' },
-                            React.createElement('svg', { 
-                              className: 'w-16 h-16 text-purple-500 mx-auto animate-wireframe', 
-                              fill: 'none', 
-                              stroke: 'currentColor', 
-                              strokeWidth: '2',
-                              viewBox: '0 0 24 24' 
-                            },
-                              // Intelligent wireframe icon - document with text lines
-                              React.createElement('path', { 
-                                strokeLinecap: 'round', 
-                                strokeLinejoin: 'round', 
-                                d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' 
+                          React.createElement('div', { className: 'mb-6' },
+                            // Solid purple animated icon
+                            React.createElement('div', { className: 'relative w-16 h-16 mx-auto' },
+                              // Main solid purple circle with pulse animation
+                              React.createElement('div', { 
+                                className: 'absolute inset-0 bg-purple-500 rounded-full animate-pulse',
+                                style: { animationDuration: '1.5s' }
                               }),
-                              // Animated scanning lines
-                              React.createElement('path', { 
-                                strokeLinecap: 'round', 
-                                strokeLinejoin: 'round', 
-                                strokeWidth: 1.5, 
-                                d: 'M3 8h18M3 12h18M3 16h18',
-                                className: 'opacity-30'
+                              // Inner rotating element with dynamic icon
+                              React.createElement('div', { 
+                                className: 'absolute inset-2 bg-purple-600 rounded-full flex items-center justify-center animate-spin',
+                                style: { animationDuration: '2s' }
+                              },
+                                getProcessingIcon()
+                              ),
+                              // Outer ring with different animation
+                              React.createElement('div', { 
+                                className: 'absolute -inset-1 border-4 border-purple-400 rounded-full animate-ping',
+                                style: { animationDuration: '3s' }
                               })
                             )
                           ),
-                          React.createElement('h3', { className: 'text-lg font-medium text-purple-600 mb-2' }, 'Generating text from the image'),
-                          React.createElement('div', { className: 'flex items-center justify-center mt-2' },
-                            React.createElement('div', { className: 'flex space-x-1' },
-                              React.createElement('div', { className: 'w-2 h-2 bg-purple-500 rounded-full animate-bounce' }),
-                              React.createElement('div', { className: 'w-2 h-2 bg-purple-500 rounded-full animate-bounce', style: { animationDelay: '0.1s' } }),
-                              React.createElement('div', { className: 'w-2 h-2 bg-purple-500 rounded-full animate-bounce', style: { animationDelay: '0.2s' } })
+                          React.createElement('h3', { className: 'text-xl font-semibold text-purple-700 mb-3' }, getProcessingMessage()),
+                          React.createElement('div', { className: 'flex items-center justify-center mt-4' },
+                            React.createElement('div', { className: 'flex space-x-2' },
+                              React.createElement('div', { 
+                                className: 'w-3 h-3 bg-purple-500 rounded-full animate-bounce',
+                                style: { animationDelay: '0s' }
+                              }),
+                              React.createElement('div', { 
+                                className: 'w-3 h-3 bg-purple-500 rounded-full animate-bounce',
+                                style: { animationDelay: '0.2s' }
+                              }),
+                              React.createElement('div', { 
+                                className: 'w-3 h-3 bg-purple-500 rounded-full animate-bounce',
+                                style: { animationDelay: '0.4s' }
+                              })
                             )
                           )
                         )
