@@ -67,6 +67,47 @@ const TextTab: React.FC<TextTabProps> = ({
     setSearchResults([]);
   }, []);
 
+  // Handle cross button clicks for word deselection
+  const handleContainerClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    console.log('🔍 Container clicked:', e.target);
+    
+    const target = e.target as HTMLElement;
+    console.log('🎯 Target element:', target);
+    console.log('🎯 Target classes:', target.classList.toString());
+    console.log('🎯 Target tag name:', target.tagName);
+    
+    // Check if the clicked element is the button or its child (the × symbol)
+    const button = target.closest('.word-deselect-btn') || 
+                  (target.classList.contains('word-deselect-btn') ? target : null);
+    
+    console.log('🔘 Button found:', button);
+    
+    if (button) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const wordIndex = parseInt(button.getAttribute('data-word-index') || '0');
+      const wordLength = parseInt(button.getAttribute('data-word-length') || '0');
+      
+      console.log('📊 Word data:', { wordIndex, wordLength });
+      
+      if (wordIndex >= 0 && wordLength > 0) {
+        const wordLocation: WordLocation = {
+          word: text.slice(wordIndex, wordIndex + wordLength),
+          index: wordIndex,
+          length: wordLength,
+        };
+        
+        console.log('🗑️ Deselecting word:', wordLocation);
+        onWordDeselect(wordLocation);
+      } else {
+        console.log('❌ Invalid word data:', { wordIndex, wordLength });
+      }
+    } else {
+      console.log('❌ No button found in click target');
+    }
+  }, [text, onWordDeselect]);
+
   // Handle double click on words
   const handleDoubleClick = useCallback((e: React.MouseEvent<HTMLTextAreaElement | HTMLDivElement>) => {
     if (isReadOnly) {
@@ -174,7 +215,7 @@ const TextTab: React.FC<TextTabProps> = ({
       }
 
       if (className) {
-        highlightedText = `${beforeText}<span class="${className} relative inline-block px-1 rounded">${wordText}${isSelected && !isExplained ? '<button class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600" onclick="handleWordDeselect(' + index + ', ' + length + ')">×</button>' : ''}</span>${afterText}`;
+        highlightedText = `${beforeText}<span class="${className} relative inline-block px-1 rounded" data-word-index="${index}" data-word-length="${length}">${wordText}${isSelected && !isExplained ? '<button class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600 word-deselect-btn" data-word-index="' + index + '" data-word-length="' + length + '">×</button>' : ''}</span>${afterText}`;
       }
     });
 
@@ -254,6 +295,7 @@ const TextTab: React.FC<TextTabProps> = ({
               'min-h-[300px] w-full rounded-lg border border-border bg-background p-3 text-sm text-text-primary whitespace-pre-wrap cursor-text',
               'focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2'
             )}
+            onClick={handleContainerClick}
             onDoubleClick={handleDoubleClick}
             dangerouslySetInnerHTML={{ __html: renderHighlightedText() }}
           />

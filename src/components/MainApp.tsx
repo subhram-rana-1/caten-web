@@ -1644,7 +1644,12 @@ export default function MainApp() {
         const isSelected = selectedWords.some(w => w.index === start && w.length === end - start);
         
         if (isSelected) {
-          setSelectedWords(prev => prev.filter(w => !(w.index === start && w.length === end - start)));
+          console.log('🗑️ Deselecting word via double-click:', wordLocation);
+          setSelectedWords(prev => {
+            const filtered = prev.filter(w => !(w.index === start && w.length === end - start));
+            console.log('📊 Selected words after deselection:', filtered);
+            return filtered;
+          });
         } else {
           // Check if word is already explained
           if (textExplainedWordNames.has(word.toLowerCase())) {
@@ -1666,7 +1671,12 @@ export default function MainApp() {
             return;
           }
           
-          setSelectedWords(prev => [...prev, wordLocation]);
+          console.log('✅ Selecting word via double-click:', wordLocation);
+          setSelectedWords(prev => {
+            const updated = [...prev, wordLocation];
+            console.log('📊 Selected words after selection:', updated);
+            return updated;
+          });
         }
       }
     }
@@ -2128,17 +2138,49 @@ export default function MainApp() {
               }
             }, wordText));
           } else if (currentHighlight === 'selected') {
+            // Capture the word text in a variable to avoid closure issues
+            const wordText = currentText;
+            console.log('🎨 Rendering selected word with Cancel button:', wordText);
+            
             result.push(React.createElement('span', {
               key: key++,
               className: 'bg-purple-200 px-1 rounded relative cursor-pointer hover:bg-purple-300 transition-colors'
-            }, currentText, React.createElement('button', {
+            }, wordText, React.createElement('button', {
               onClick: (e) => {
+                console.log('🔴 Cancel button clicked!');
+                console.log('🎯 Event target:', e.target);
+                console.log('🎯 Word text:', wordText);
+                console.log('📊 Selected words before:', selectedWords);
+                
+                e.preventDefault();
                 e.stopPropagation();
+                
                 const wordLocation = selectedWords.find(w => 
-                  text.slice(w.index, w.index + w.length) === currentText
+                  text.slice(w.index, w.index + w.length) === wordText
                 );
+                
+                console.log('🔍 Found word location:', wordLocation);
+                console.log('🔍 Searching for word:', wordText);
+                console.log('🔍 Available words in selectedWords:', selectedWords.map(w => ({
+                  word: text.slice(w.index, w.index + w.length),
+                  index: w.index,
+                  length: w.length
+                })));
+                
                 if (wordLocation) {
-                  setSelectedWords(prev => prev.filter(w => !(w.index === wordLocation.index && w.length === wordLocation.length)));
+                  console.log('🗑️ Removing word from selection:', wordLocation);
+                  setSelectedWords(prev => {
+                    const filtered = prev.filter(w => !(w.index === wordLocation.index && w.length === wordLocation.length));
+                    console.log('📊 Selected words after:', filtered);
+                    return filtered;
+                  });
+                } else {
+                  console.log('❌ Word location not found for text:', wordText);
+                  console.log('📊 Available selected words:', selectedWords.map(w => ({
+                    word: text.slice(w.index, w.index + w.length),
+                    index: w.index,
+                    length: w.length
+                  })));
                 }
               },
               className: 'absolute -top-1 -right-1 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600 leading-none',
@@ -2449,14 +2491,14 @@ export default function MainApp() {
                   ? React.createElement('div', { className: 'relative' },
                       text ? React.createElement('div', {
                         ref: textCanvasRef,
-                        className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap overflow-y-auto hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : isProcessingImage ? 'blur-sm' : ''}`,
+                        className: `w-full h-[280px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap overflow-y-auto hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : isProcessingImage ? 'blur-sm' : ''}`,
                         onDoubleClick: handleDoubleClick
                       }, renderHighlightedText()) : React.createElement('textarea', {
                         ref: textCanvasRef,
                         placeholder: 'Paste your text here (Don\'t write manually)...',
                         value: text,
                         onChange: (e) => setText((e.target as HTMLTextAreaElement).value),
-                        className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : isProcessingImage ? 'blur-sm' : ''}`,
+                        className: `w-full h-[280px] px-4 py-3 border border-purple-300 rounded-lg text-sm leading-relaxed bg-white cursor-text whitespace-pre-wrap resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] transition-all duration-200 ${isPreparingExplanations || isSmartSelecting ? 'blur-[0.5px]' : isProcessingImage ? 'blur-sm' : ''}`,
                         onDoubleClick: handleDoubleClick
                       }),
                       
@@ -2605,7 +2647,7 @@ export default function MainApp() {
 
                 
                 // Smart Select Overlay
-                isSmartSelecting && React.createElement('div', { className: 'text-canvas-overlay' },
+                isSmartSelecting && React.createElement('div', { className: 'absolute top-0 left-0 right-0 h-[280px] bg-white bg-opacity-80 backdrop-blur-md flex items-center justify-center z-10 rounded-lg' },
                   React.createElement('div', { className: 'loading-content' },
                     React.createElement('div', { className: 'loading-icon smart-select-icon' },
                       React.createElement('svg', { 
@@ -2632,23 +2674,35 @@ export default function MainApp() {
                 ),
 
 
-                // Smart Explain Overlay
-                getCurrentTabLoadingStates().isSmartExplaining && React.createElement('div', { className: 'text-canvas-overlay' },
+                // Smart Explain Overlay - only covers text canvas
+                getCurrentTabLoadingStates().isSmartExplaining && React.createElement('div', { className: 'absolute top-0 left-0 right-0 h-[280px] bg-white bg-opacity-80 backdrop-blur-md flex items-center justify-center z-10 rounded-lg' },
                   React.createElement('div', { className: 'loading-content' },
-                    // Smart selecting phase
-                    getCurrentTabLoadingStates().smartExplainPhase === 'selecting' && React.createElement(React.Fragment, {},
-                      React.createElement('div', { className: 'loading-icon smart-select-icon' },
+                    // Smart selecting phase - appears suddenly
+                    getCurrentTabLoadingStates().smartExplainPhase === 'selecting' && React.createElement('div', { className: 'fade-in' },
+                      React.createElement('div', { className: 'loading-icon' },
                         React.createElement('svg', { 
-                          className: 'w-full h-full text-purple-500 animate-wireframe', 
-                          fill: 'none', 
-                          stroke: 'currentColor', 
-                          strokeWidth: '2',
+                          className: 'w-full h-full text-purple-500 jumping-bulb-icon', 
+                          fill: 'currentColor', 
                           viewBox: '0 0 24 24' 
                         },
                           React.createElement('path', { 
-                            strokeLinecap: 'round', 
-                            strokeLinejoin: 'round', 
-                            d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' 
+                            d: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.1 0 2-.9 2-2h-2c0 .55-.45 1-1 1s-1-.45-1-1H8c0 .55-.45 1-1 1s-1-.45-1-1H4c0 1.1.9 2 2 2 4.41 0 8-3.59 8-8s-3.59-8-8-8z' 
+                          }),
+                          React.createElement('path', { 
+                            d: 'M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z' 
+                          }),
+                          React.createElement('path', { 
+                            d: 'M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z' 
+                          }),
+                          React.createElement('path', { 
+                            d: 'M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1z' 
+                          }),
+                          React.createElement('circle', { 
+                            cx: '12', 
+                            cy: '12', 
+                            r: '1.5', 
+                            fill: 'white',
+                            opacity: '0.9'
                           })
                         )
                       ),
@@ -2660,20 +2714,32 @@ export default function MainApp() {
                       )
                     ),
                     
-                    // Explaining phase
-                    getCurrentTabLoadingStates().smartExplainPhase === 'explaining' && React.createElement(React.Fragment, {},
-                      React.createElement('div', { className: 'loading-icon explain-icon' },
+                    // Explaining phase with slide animation
+                    getCurrentTabLoadingStates().smartExplainPhase === 'explaining' && React.createElement('div', { className: 'slide-in-from-right' },
+                      React.createElement('div', { className: 'loading-icon' },
                         React.createElement('svg', { 
-                          className: 'w-full h-full text-purple-500 animate-wireframe', 
-                          fill: 'none', 
-                          stroke: 'currentColor', 
-                          strokeWidth: '2',
+                          className: 'w-full h-full text-purple-500 dynamic-purple-icon', 
+                          fill: 'currentColor', 
                           viewBox: '0 0 24 24' 
                         },
                           React.createElement('path', { 
-                            strokeLinecap: 'round', 
-                            strokeLinejoin: 'round', 
-                            d: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a1 1 0 01-1-1V9a1 1 0 011-1h1a2 2 0 100-4H4a1 1 0 01-1-1V4a1 1 0 011-1h3a1 1 0 001-1V4z' 
+                            d: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z' 
+                          }),
+                          React.createElement('circle', { 
+                            cx: '12', 
+                            cy: '12', 
+                            r: '3', 
+                            fill: 'none', 
+                            stroke: 'currentColor', 
+                            strokeWidth: '2',
+                            opacity: '0.6'
+                          }),
+                          React.createElement('path', { 
+                            d: 'M12 1v6m0 6v6m11-7h-6m-6 0H1', 
+                            stroke: 'currentColor', 
+                            strokeWidth: '1.5', 
+                            strokeLinecap: 'round',
+                            opacity: '0.4'
                           })
                         )
                       ),
@@ -2688,20 +2754,32 @@ export default function MainApp() {
                 ),
                 
                 // Preparing Explanations Overlay
-                getCurrentTabLoadingStates().isPreparingExplanations && React.createElement('div', { className: 'text-canvas-overlay' },
+                getCurrentTabLoadingStates().isPreparingExplanations && React.createElement('div', { className: 'absolute top-0 left-0 right-0 h-[280px] bg-white bg-opacity-80 backdrop-blur-md flex items-center justify-center z-10 rounded-lg' },
                   React.createElement('div', { className: 'loading-content' },
-                    React.createElement('div', { className: 'loading-icon explain-icon' },
+                    React.createElement('div', { className: 'loading-icon' },
                       React.createElement('svg', { 
-                        className: 'w-full h-full text-purple-500 animate-wireframe', 
-                        fill: 'none', 
-                        stroke: 'currentColor', 
-                        strokeWidth: '2',
+                        className: 'w-full h-full text-purple-500 dynamic-purple-icon', 
+                        fill: 'currentColor', 
                         viewBox: '0 0 24 24' 
                       },
                         React.createElement('path', { 
-                          strokeLinecap: 'round', 
-                          strokeLinejoin: 'round', 
-                          d: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a1 1 0 01-1-1V9a1 1 0 011-1h1a2 2 0 100-4H4a1 1 0 01-1-1V4a1 1 0 011-1h3a1 1 0 001-1V4z' 
+                          d: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z' 
+                        }),
+                        React.createElement('circle', { 
+                          cx: '12', 
+                          cy: '12', 
+                          r: '3', 
+                          fill: 'none', 
+                          stroke: 'currentColor', 
+                          strokeWidth: '2',
+                          opacity: '0.6'
+                        }),
+                        React.createElement('path', { 
+                          d: 'M12 1v6m0 6v6m11-7h-6m-6 0H1', 
+                          stroke: 'currentColor', 
+                          strokeWidth: '1.5', 
+                          strokeLinecap: 'round',
+                          opacity: '0.4'
                         })
                       )
                     ),
@@ -2716,7 +2794,7 @@ export default function MainApp() {
               ),
 
               // Action Buttons - Three Groups Layout
-              React.createElement('div', { className: 'flex justify-between items-start mt-auto pt-6' },
+              React.createElement('div', { className: 'flex justify-between items-start mt-auto pt-3' },
                 // Left Button Group - Clear Buttons
                 React.createElement('div', { className: 'flex flex-col space-y-3' },
                   text.trim() && !getCurrentTabLoadingStates().isSmartExplaining && !getCurrentTabLoadingStates().isExplaining && React.createElement('button', {
@@ -2972,20 +3050,32 @@ export default function MainApp() {
                     ),
 
                 // Preparing Explanations Overlay for Words Tab - only covers the word display area
-                getCurrentTabLoadingStates().isPreparingExplanations && React.createElement('div', { className: 'text-canvas-overlay' },
+                getCurrentTabLoadingStates().isPreparingExplanations && React.createElement('div', { className: 'absolute top-0 left-0 right-0 h-[280px] bg-white bg-opacity-80 backdrop-blur-md flex items-center justify-center z-10 rounded-lg' },
                   React.createElement('div', { className: 'loading-content' },
-                    React.createElement('div', { className: 'loading-icon explain-icon' },
+                    React.createElement('div', { className: 'loading-icon' },
                       React.createElement('svg', { 
-                        className: 'w-full h-full text-purple-500 animate-wireframe', 
-                        fill: 'none', 
-                        stroke: 'currentColor', 
-                        strokeWidth: '2',
+                        className: 'w-full h-full text-purple-500 dynamic-purple-icon', 
+                        fill: 'currentColor', 
                         viewBox: '0 0 24 24' 
                       },
                         React.createElement('path', { 
-                          strokeLinecap: 'round', 
-                          strokeLinejoin: 'round', 
-                          d: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a1 1 0 01-1-1V9a1 1 0 011-1h1a2 2 0 100-4H4a1 1 0 01-1-1V4a1 1 0 011-1h3a1 1 0 001-1V4z' 
+                          d: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z' 
+                        }),
+                        React.createElement('circle', { 
+                          cx: '12', 
+                          cy: '12', 
+                          r: '3', 
+                          fill: 'none', 
+                          stroke: 'currentColor', 
+                          strokeWidth: '2',
+                          opacity: '0.6'
+                        }),
+                        React.createElement('path', { 
+                          d: 'M12 1v6m0 6v6m11-7h-6m-6 0H1', 
+                          stroke: 'currentColor', 
+                          strokeWidth: '1.5', 
+                          strokeLinecap: 'round',
+                          opacity: '0.4'
                         })
                       )
                     ),
@@ -3077,7 +3167,7 @@ export default function MainApp() {
             React.createElement('div', { 
               ref: explanationSectionRef,
               key: explanationKey,
-              className: 'flex-1 overflow-y-auto max-h-[500px] space-y-4' 
+              className: 'h-[500px] overflow-y-auto space-y-4' 
             },
               
               
