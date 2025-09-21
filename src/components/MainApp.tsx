@@ -2246,7 +2246,7 @@ export default function MainApp() {
           ['Upload', 'texts', 'or', 'images.', 'Learn', 'new', 'words', 'instantly.'].map((word, index) => 
             React.createElement('span', {
               key: index,
-              className: 'inline-block hover:scale-110 transition-all duration-300 px-1 py-1 rounded-full hover:bg-purple-100',
+              className: 'inline-block hover:scale-110 transition-all duration-300 px-1 py-1 rounded-full',
               style: { transition: 'all 0.3s ease' }
             }, word)
           )
