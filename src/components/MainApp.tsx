@@ -2093,7 +2093,7 @@ export default function MainApp() {
             
             result.push(React.createElement('span', {
               key: key++,
-              className: 'bg-green-200 px-1 rounded cursor-pointer hover:bg-green-300 transition-colors',
+              className: 'bg-green-200 border border-green-300 px-1 rounded cursor-pointer hover:bg-green-300 hover:border-green-400 transition-all duration-300 transform hover:scale-125 hover:shadow-lg hover:z-10 hover:rotate-1',
               onClick: (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -2144,7 +2144,7 @@ export default function MainApp() {
             
             result.push(React.createElement('span', {
               key: key++,
-              className: 'bg-purple-200 px-1 rounded relative cursor-pointer hover:bg-purple-300 transition-colors'
+              className: 'bg-purple-200 border border-purple-300 px-1 rounded relative cursor-pointer hover:bg-purple-300 hover:border-purple-400 transition-all duration-300 transform hover:scale-125 hover:shadow-lg hover:z-10 hover:rotate-1'
             }, wordText, React.createElement('button', {
               onClick: (e) => {
                 console.log('🔴 Cancel button clicked!');
@@ -2183,13 +2183,13 @@ export default function MainApp() {
                   })));
                 }
               },
-              className: 'absolute -top-1 -right-1 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600 leading-none',
+              className: 'absolute -top-1 -right-1 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600 leading-none transition-all duration-200 transform hover:scale-125 hover:shadow-lg',
               title: 'Remove word selection'
             }, '×')));
           } else if (currentHighlight === 'manual') {
             result.push(React.createElement('span', {
               key: key++,
-              className: 'bg-purple-200 px-1 rounded cursor-pointer hover:bg-purple-300 transition-colors'
+              className: 'bg-purple-200 border border-purple-300 px-1 rounded cursor-pointer hover:bg-purple-300 hover:border-purple-400 transition-all duration-300 transform hover:scale-125 hover:shadow-lg hover:z-10 hover:rotate-1'
             }, currentText));
           } else if (currentHighlight === 'search') {
             result.push(React.createElement('span', {
@@ -2480,7 +2480,7 @@ export default function MainApp() {
                     React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
                   ),
                   React.createElement('span', {}, 'Click on the word with '),
-                  React.createElement('span', { className: 'bg-green-200 px-1 rounded' }, 'green color'),
+                  React.createElement('span', { className: 'bg-green-200 border border-green-300 px-1 rounded' }, 'green color'),
                   React.createElement('span', {}, ' background to view explanation')
                 )
               ),
@@ -2987,7 +2987,7 @@ export default function MainApp() {
                   React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
                 ),
                 React.createElement('span', {}, 'Click on the word with '),
-                React.createElement('span', { className: 'bg-green-200 px-1 rounded' }, 'green color'),
+                React.createElement('span', { className: 'bg-green-200 border border-green-300 px-1 rounded' }, 'green color'),
                 React.createElement('span', {}, ' background to view explanation')
               ),
               
@@ -3000,10 +3000,10 @@ export default function MainApp() {
                         const isExplained = wordsExplainedWordNames.has(word);
                         return React.createElement('div', { 
                           key: word, 
-                          className: `inline-flex items-center px-3 py-1 rounded-full text-xs font-medium transition-colors duration-200 ${
+                          className: `inline-flex items-center px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 transform ${
                             isExplained 
-                              ? 'bg-green-100 text-green-700 cursor-pointer hover:bg-green-200' 
-                              : 'bg-purple-100 text-purple-700'
+                              ? 'bg-green-100 border border-green-300 text-green-700 cursor-pointer hover:bg-green-200 hover:border-green-400 hover:scale-105 hover:shadow-md' 
+                              : 'bg-purple-100 border border-purple-300 text-purple-700 hover:border-purple-400 hover:scale-105 hover:shadow-md'
                           }`,
                           onClick: isExplained ? () => handleExplainedWordClick(word) : undefined
                         },
@@ -3015,7 +3015,7 @@ export default function MainApp() {
                               setManualWords(prev => prev.filter(w => w !== word));
                               toast.success(`Word "${word}" removed`);
                             },
-                            className: 'w-5 h-5 rounded-full flex items-center justify-center transition-colors duration-200 ml-1 mr-2 hover:bg-purple-200'
+                            className: 'w-5 h-5 rounded-full flex items-center justify-center transition-all duration-200 transform hover:scale-110 hover:shadow-sm ml-1 mr-1 hover:bg-purple-200'
                           },
                             React.createElement('svg', {
                               className: 'w-4 h-4',
