@@ -44,6 +44,9 @@ export default function MainApp() {
     importantWords: any[];
     currentTab: string;
   } | null>(null);
+
+  // Animation state for explanation cards
+  const [newCardAnimations, setNewCardAnimations] = useState<Set<string>>(new Set());
   
   // Efficient word-to-index mappings for O(1) lookups
   const [textWordToIndexMap, setTextWordToIndexMap] = useState<Map<string, number>>(new Map());
@@ -52,6 +55,18 @@ export default function MainApp() {
   // Force immediate explanation update using a different approach
   const addExplanationImmediately = useCallback((newInfo: any, tabType: 'text' | 'words') => {
     console.log('Adding explanation immediately for:', newInfo.word, 'in', tabType, 'tab');
+    
+    // Trigger animation for new card
+    setNewCardAnimations(prev => new Set(prev).add(newInfo.word));
+    
+    // Remove animation after it completes
+    setTimeout(() => {
+      setNewCardAnimations(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(newInfo.word);
+        return newSet;
+      });
+    }, 500); // Animation duration + small buffer
     
     if (tabType === 'text') {
       // Update text explanations
@@ -1265,6 +1280,8 @@ export default function MainApp() {
           // Keep isSmartExplaining true until the very end
           setSelectedWords([]); // Clear selected words as they are now explained
           setAbortController(null);
+          loadingStates.setIsExplaining(false);
+          loadingStates.setIsPreparingExplanations(false);
           loadingStates.setIsSmartExplaining(false);
           loadingStates.setSmartExplainPhase('idle');
           // Ensure all cards start collapsed
@@ -1282,6 +1299,8 @@ export default function MainApp() {
         if (data.error_code) {
           console.error('❌ Error: ' + data.error_code + ' - ' + data.error_message);
           showError('Error: ' + data.error_code + ' - ' + data.error_message);
+          loadingStates.setIsExplaining(false);
+          loadingStates.setIsPreparingExplanations(false);
           loadingStates.setIsSmartExplaining(false);
           loadingStates.setIsStreaming(false);
           loadingStates.setSmartExplainPhase('idle');
@@ -1345,6 +1364,8 @@ export default function MainApp() {
       if (event.code !== 1000) {
         console.error('❌ Connection closed unexpectedly (code: ' + event.code + ')');
         showError('Connection closed unexpectedly');
+        loadingStates.setIsExplaining(false);
+        loadingStates.setIsPreparingExplanations(false);
         loadingStates.setIsSmartExplaining(false);
         loadingStates.setIsStreaming(false);
         loadingStates.setSmartExplainPhase('idle');
@@ -1356,6 +1377,8 @@ export default function MainApp() {
     ws.onerror = function(error) {
       console.error('WebSocket error:', error);
       showError('WebSocket connection error occurred');
+      loadingStates.setIsExplaining(false);
+      loadingStates.setIsPreparingExplanations(false);
       loadingStates.setIsSmartExplaining(false);
       loadingStates.setIsStreaming(false);
       loadingStates.setSmartExplainPhase('idle');
@@ -3064,11 +3087,16 @@ export default function MainApp() {
                 ? sortedExplanations.map((explanation, index) => {
                     const isExpanded = expandedCards.has(explanation.word);
                     const isLoadingMoreExamples = loadingMore.has(explanation.word);
+                    const isNewCard = newCardAnimations.has(explanation.word);
                     
                     return React.createElement('div', { 
                       key: index, 
                       'data-word': explanation.word,
-                      className: 'bg-purple-100 rounded-xl overflow-hidden transition-all duration-300 ease-in-out hover:bg-purple-150 mr-2' 
+                      className: `bg-purple-100 rounded-xl overflow-hidden transition-all duration-300 ease-in-out hover:bg-purple-150 mr-2 ${
+                        isNewCard 
+                          ? 'animate-slide-in-right' 
+                          : ''
+                      }` 
                     },
                       // Card Header (always visible)
                       React.createElement('div', {

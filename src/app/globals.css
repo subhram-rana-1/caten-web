@@ -228,6 +228,29 @@
     animation: slideDown 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
+  /* Card entrance animation - slide in from right */
+  @keyframes slideInFromRight {
+    0% {
+      opacity: 0;
+      transform: translateX(100%);
+      box-shadow: 0 0 0 rgba(149, 39, 245, 0);
+    }
+    50% {
+      opacity: 0.8;
+      transform: translateX(20%);
+      box-shadow: 0 4px 15px -4px rgba(149, 39, 245, 0.2);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0);
+      box-shadow: 0 2px 8px -2px rgba(149, 39, 245, 0.1);
+    }
+  }
+
+  .animate-slide-in-right {
+    animation: slideInFromRight 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
   /* Optimized dialog animations for better performance */
   .dialog-overlay {
     will-change: opacity;
