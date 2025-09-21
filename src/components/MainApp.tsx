@@ -130,6 +130,7 @@ export default function MainApp() {
   const [cropStart, setCropStart] = useState({ x: 0, y: 0, width: 100, height: 100 });
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [processingPhase, setProcessingPhase] = useState<'extracting' | 'hold-on' | 'almost-there'>('extracting');
+  const [processingIntervalRef, setProcessingIntervalRef] = useState<NodeJS.Timeout | null>(null);
   const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
@@ -166,9 +167,39 @@ export default function MainApp() {
       if (processingTimerRef.current) {
         clearTimeout(processingTimerRef.current);
       }
+      if (processingIntervalRef) {
+        clearInterval(processingIntervalRef);
+      }
     };
-  }, []);
+  }, [processingIntervalRef]);
 
+
+
+
+  // Start cyclic processing messages
+  const startCyclicProcessingMessages = () => {
+    setProcessingPhase('extracting');
+    
+    const phases: Array<'extracting' | 'hold-on' | 'almost-there'> = ['extracting', 'hold-on', 'almost-there'];
+    let currentPhaseIndex = 0;
+    
+    const interval = setInterval(() => {
+      currentPhaseIndex = (currentPhaseIndex + 1) % phases.length;
+      setProcessingPhase(phases[currentPhaseIndex]);
+    }, 4000); // Change message every 4 seconds
+    
+    setProcessingIntervalRef(interval);
+    return interval;
+  };
+
+  // Stop cyclic processing messages
+  const stopCyclicProcessingMessages = () => {
+    if (processingIntervalRef) {
+      clearInterval(processingIntervalRef);
+      setProcessingIntervalRef(null);
+    }
+    setProcessingPhase('extracting');
+  };
 
   // Get processing message based on current phase
   const getProcessingMessage = () => {
@@ -184,7 +215,6 @@ export default function MainApp() {
           return 'Extracting text out of your image';
       }
     })();
-    console.log('💬 getProcessingMessage called - phase:', processingPhase, 'message:', message);
     return message;
   };
 
@@ -691,39 +721,19 @@ export default function MainApp() {
   const handleCropExplain = async () => {
     if (!uploadedImageFile) return;
 
-    console.log('🚀 handleCropExplain called - Starting image processing...');
     setIsLoading(true);
     setIsProcessingImage(true);
-    setProcessingPhase('extracting');
     setShowCropCanvas(false);
-    console.log('✅ State set - isProcessingImage: true, processingPhase: extracting');
     
     // Switch to text tab immediately
     setActiveTab('text');
     setDisplayedTab('text');
-    console.log('📱 Switched to text tab - activeTab: text, displayedTab: text');
     setTimeout(() => {
       updateSliderPosition('text');
     }, 50);
     
-
-    // Start processing phase timers
-    console.log('⏰ Starting timers - will change to hold-on in 3s, almost-there in 6s, cleanup in 7s');
-    setTimeout(() => {
-      setProcessingPhase('hold-on');
-      console.log('🔄 Phase changed to: hold-on');
-      // Set the second message after 3 more seconds
-      setTimeout(() => {
-        setProcessingPhase('almost-there');
-        console.log('🔄 Phase changed to: almost-there');
-        // Clean up after minimum duration (7 seconds total)
-        setTimeout(() => {
-          console.log('🧹 Cleaning up processing states after minimum duration');
-          setIsProcessingImage(false);
-          setProcessingPhase('extracting');
-        }, 1000); // 1 second after "almost-there" message
-      }, 3000);
-    }, 3000); // After 3 seconds, show "Please hold on, we are almost there"
+    // Start cyclic processing messages
+    startCyclicProcessingMessages();
 
     try {
       // Create a canvas to apply crop and rotation
@@ -779,6 +789,19 @@ export default function MainApp() {
               setText(data.text);
               
               toast.success('Text extracted successfully from image!');
+              
+              // Now cleanup the processing states
+              setIsLoading(false);
+              setIsProcessingImage(false);
+              stopCyclicProcessingMessages();
+              
+              // Clean up
+              setUploadedImageFile(null);
+              if (imagePreviewUrl) {
+                URL.revokeObjectURL(imagePreviewUrl);
+                setImagePreviewUrl(null);
+              }
+              if (fileInputRef.current) fileInputRef.current.value = '';
             } else {
               throw new Error('No text extracted from image');
             }
@@ -786,12 +809,12 @@ export default function MainApp() {
         } catch (error) {
           console.error('Error processing cropped image:', error);
           showError('Failed to extract text from cropped image. Please try again.');
-        } finally {
-          console.log('Image processing completed, but keeping overlay visible for minimum duration');
+          
+          // Cleanup on error
           setIsLoading(false);
-          // Don't reset isProcessingImage immediately - let the timers handle it
-          // setIsProcessingImage(false);
-          // setProcessingPhase('extracting');
+          setIsProcessingImage(false);
+          stopCyclicProcessingMessages();
+          
           // Clean up
           setUploadedImageFile(null);
           if (imagePreviewUrl) {
@@ -799,17 +822,19 @@ export default function MainApp() {
             setImagePreviewUrl(null);
           }
           if (fileInputRef.current) fileInputRef.current.value = '';
+        } finally {
+          // Only reset states if we're actually done processing
+          // Don't reset immediately - let the API response handle it
         }
       };
       
       img.src = imagePreviewUrl!;
     } catch (error) {
       console.error('Error processing image:', error);
-      console.log('Error occurred, resetting isProcessingImage to false');
       showError('Failed to extract text from image. Please try again.');
       setIsLoading(false);
       setIsProcessingImage(false);
-      setProcessingPhase('extracting');
+      stopCyclicProcessingMessages();
     }
   };
 
@@ -2110,11 +2135,7 @@ export default function MainApp() {
 
               // Text Area with Smart Explain Overlay
               React.createElement('div', { className: 'relative flex flex-col flex-1' },
-                (() => {
-                  const shouldRender = (text || isProcessingImage || displayedTab === 'text');
-                  console.log('🎯 Text area render check - text:', !!text, 'isProcessingImage:', isProcessingImage, 'displayedTab:', displayedTab, 'shouldRender:', shouldRender);
-                  return shouldRender;
-                })()
+                (isProcessingImage || text || displayedTab === 'text')
                   ? React.createElement('div', { className: 'relative' },
                       text ? React.createElement('div', {
                         ref: textCanvasRef,
@@ -2125,10 +2146,9 @@ export default function MainApp() {
                       }, ''),
                       
                       // Enhanced Image Processing Overlay for text canvas
-                      (() => {
-                        console.log('🎨 Overlay render check - isProcessingImage:', isProcessingImage, 'will render overlay:', isProcessingImage);
-                        return isProcessingImage;
-                      })() && React.createElement('div', { className: 'absolute inset-0 bg-white bg-opacity-80 backdrop-blur-md flex items-center justify-center z-10 rounded-lg' },
+                      isProcessingImage && React.createElement('div', { 
+                        className: 'absolute inset-0 bg-white bg-opacity-80 backdrop-blur-md flex items-center justify-center z-10 rounded-lg'
+                      },
                         React.createElement('div', { className: 'text-center' },
                           React.createElement('div', { className: 'mb-6' },
                             // Solid purple animated icon
