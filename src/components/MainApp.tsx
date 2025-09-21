@@ -2928,25 +2928,25 @@ export default function MainApp() {
             React.createElement('div', { className: 'flex items-center space-x-2' },
               React.createElement('button', {
                 onClick: () => setCropData({ x: 0, y: 0, width: 100, height: 100 }),
-                className: 'px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors'
+                className: 'px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-purple-200 transition-all duration-200 transform hover:scale-105'
               }, 'Reset Crop'),
               React.createElement('button', {
                 onClick: () => setRotation(0),
-                className: 'px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors'
+                className: 'px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-purple-200 transition-all duration-200 transform hover:scale-105'
               }, 'Reset Rotation')
             ),
             React.createElement('div', { className: 'flex items-center space-x-4' },
               React.createElement('button', {
                 onClick: handleCropCancel,
-                className: 'px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors'
+                className: 'px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-purple-200 transition-all duration-200 transform hover:scale-105'
               }, 'Cancel'),
               React.createElement('button', {
                 onClick: handleCropExplain,
                 disabled: isLoading,
-                className: 'px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2'
+                className: 'px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 flex items-center space-x-2'
               },
                 isLoading && React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-white' }),
-                React.createElement('span', {}, isLoading ? 'Reading text from image...' : 'Explain')
+                React.createElement('span', {}, isLoading ? 'Reading text from image...' : 'Proceed')
               )
             )
           )
