@@ -525,6 +525,44 @@
     width: 300px;
     height: 300px;
   }
+
+  /* Marching ants effect for dashed border */
+  .marching-ants {
+    position: relative;
+    border: 2px solid transparent;
+  }
+  
+  .marching-ants::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    right: -1px;
+    bottom: -1px;
+    border: 1px solid #a855f7;
+    border-radius: inherit;
+    background: 
+      linear-gradient(90deg, #a855f7 50%, transparent 50%),
+      linear-gradient(0deg, #a855f7 50%, transparent 50%),
+      linear-gradient(90deg, #a855f7 50%, transparent 50%),
+      linear-gradient(0deg, #a855f7 50%, transparent 50%);
+    background-size: 20px 1px, 1px 20px, 20px 1px, 1px 20px;
+    background-position: 0 0, 100% 0, 100% 100%, 0 100%;
+    background-repeat: repeat-x, repeat-y, repeat-x, repeat-y;
+    animation: marchingAnts 1s linear infinite;
+    pointer-events: none;
+    z-index: 20;
+    opacity: 0.9;
+  }
+  
+  @keyframes marchingAnts {
+    0% {
+      background-position: 0 0, 100% 0, 100% 100%, 0 100%;
+    }
+    100% {
+      background-position: 20px 0, 100% 20px, calc(100% - 20px) 100%, 0 calc(100% - 20px);
+    }
+  }
 }
 
 /* Toaster styles */

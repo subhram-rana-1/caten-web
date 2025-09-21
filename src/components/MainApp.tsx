@@ -729,9 +729,17 @@ export default function MainApp() {
     const deltaX = e.clientX - dragStart.x;
     const deltaY = e.clientY - dragStart.y;
     
+    // Get the image container dimensions to calculate proper percentage
+    const imageContainer = e.currentTarget.closest('.relative');
+    if (!imageContainer) return;
+    
+    const containerRect = imageContainer.getBoundingClientRect();
+    const deltaXPercent = (deltaX / containerRect.width) * 100;
+    const deltaYPercent = (deltaY / containerRect.height) * 100;
+    
     setCropData({
-      x: Math.max(0, Math.min(100 - cropData.width, cropStart.x + (deltaX / 4))),
-      y: Math.max(0, Math.min(100 - cropData.height, cropStart.y + (deltaY / 4))),
+      x: Math.max(0, Math.min(100 - cropData.width, cropStart.x + deltaXPercent)),
+      y: Math.max(0, Math.min(100 - cropData.height, cropStart.y + deltaYPercent)),
       width: cropData.width,
       height: cropData.height
     });
@@ -746,36 +754,61 @@ export default function MainApp() {
     e.preventDefault();
     e.stopPropagation();
     
+    
     const startX = e.clientX;
     const startY = e.clientY;
     const startCrop = { ...cropData };
+    
+    // Get the image container for proper percentage calculation
+    const imageContainer = e.currentTarget.closest('.relative');
+    if (!imageContainer) return;
+    
+    const containerRect = imageContainer.getBoundingClientRect();
     
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = moveEvent.clientX - startX;
       const deltaY = moveEvent.clientY - startY;
       
+      // Convert pixel movement to percentage
+      const deltaXPercent = (deltaX / containerRect.width) * 100;
+      const deltaYPercent = (deltaY / containerRect.height) * 100;
+      
       let newCrop = { ...startCrop };
       
       switch (direction) {
         case 'nw':
-          newCrop.x = Math.max(0, Math.min(startCrop.x + startCrop.width - 10, startCrop.x + deltaX / 4));
-          newCrop.y = Math.max(0, Math.min(startCrop.y + startCrop.height - 10, startCrop.y + deltaY / 4));
+          newCrop.x = Math.max(0, Math.min(startCrop.x + startCrop.width - 10, startCrop.x + deltaXPercent));
+          newCrop.y = Math.max(0, Math.min(startCrop.y + startCrop.height - 10, startCrop.y + deltaYPercent));
           newCrop.width = startCrop.width - (newCrop.x - startCrop.x);
           newCrop.height = startCrop.height - (newCrop.y - startCrop.y);
           break;
         case 'ne':
-          newCrop.y = Math.max(0, Math.min(startCrop.y + startCrop.height - 10, startCrop.y + deltaY / 4));
-          newCrop.width = Math.max(10, Math.min(100 - newCrop.x, startCrop.width + deltaX / 4));
+          newCrop.y = Math.max(0, Math.min(startCrop.y + startCrop.height - 10, startCrop.y + deltaYPercent));
+          newCrop.width = Math.max(10, Math.min(100 - newCrop.x, startCrop.width + deltaXPercent));
           newCrop.height = startCrop.height - (newCrop.y - startCrop.y);
           break;
         case 'sw':
-          newCrop.x = Math.max(0, Math.min(startCrop.x + startCrop.width - 10, startCrop.x + deltaX / 4));
+          newCrop.x = Math.max(0, Math.min(startCrop.x + startCrop.width - 10, startCrop.x + deltaXPercent));
           newCrop.width = startCrop.width - (newCrop.x - startCrop.x);
-          newCrop.height = Math.max(10, Math.min(100 - newCrop.y, startCrop.height + deltaY / 4));
+          newCrop.height = Math.max(10, Math.min(100 - newCrop.y, startCrop.height + deltaYPercent));
           break;
         case 'se':
-          newCrop.width = Math.max(10, Math.min(100 - newCrop.x, startCrop.width + deltaX / 4));
-          newCrop.height = Math.max(10, Math.min(100 - newCrop.y, startCrop.height + deltaY / 4));
+          newCrop.width = Math.max(10, Math.min(100 - newCrop.x, startCrop.width + deltaXPercent));
+          newCrop.height = Math.max(10, Math.min(100 - newCrop.y, startCrop.height + deltaYPercent));
+          break;
+        case 'n':
+          newCrop.y = Math.max(0, Math.min(startCrop.y + startCrop.height - 10, startCrop.y + deltaYPercent));
+          newCrop.height = startCrop.height - (newCrop.y - startCrop.y);
+          break;
+        case 's':
+          newCrop.height = Math.max(10, Math.min(100 - newCrop.y, startCrop.height + deltaYPercent));
+          break;
+        case 'e':
+          newCrop.width = Math.max(10, Math.min(100 - newCrop.x, startCrop.width + deltaXPercent));
+          break;
+        case 'w':
+          newCrop.x = Math.max(0, Math.min(startCrop.x + startCrop.width - 10, startCrop.x + deltaXPercent));
+          newCrop.width = startCrop.width - (newCrop.x - startCrop.x);
           break;
       }
       
@@ -2738,52 +2771,18 @@ export default function MainApp() {
       },
         // Header
         React.createElement('div', { 
-          className: 'flex items-center justify-between p-6 border-b border-gray-200' 
+          className: 'flex items-center justify-center p-6 border-b border-gray-200 relative' 
         },
           React.createElement('h2', { 
             className: 'text-xl font-semibold text-gray-900' 
           }, 'Crop & Rotate Image'),
           React.createElement('button', {
             onClick: handleCropCancel,
-            className: 'text-gray-400 hover:text-gray-600 transition-colors'
+            className: 'absolute right-6 text-gray-400 hover:text-gray-600 transition-colors'
           },
             React.createElement('svg', { className: 'w-6 h-6', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
               React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
             )
-          )
-        ),
-        
-        // Toolbar
-        React.createElement('div', { 
-          className: 'flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50' 
-        },
-          // Rotation Controls
-          React.createElement('div', { className: 'flex items-center space-x-2' },
-            React.createElement('span', { className: 'text-sm font-medium text-gray-700' }, 'Rotate:'),
-            React.createElement('button', {
-              onClick: handleRotateLeft,
-              className: 'p-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors',
-              title: 'Rotate Left'
-            },
-              React.createElement('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' })
-              )
-            ),
-            React.createElement('button', {
-              onClick: handleRotateRight,
-              className: 'p-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors',
-              title: 'Rotate Right'
-            },
-              React.createElement('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M20 4v5h-.582m0 0a8.001 8.001 0 00-15.356 2m15.356-2H15m5 11v-5h-.581m0 0a8.003 8.003 0 01-15.357 2m15.357 2H15' })
-              )
-            ),
-            React.createElement('span', { className: 'text-sm text-gray-500 ml-2' }, `${rotation}°`)
-          ),
-          
-          // Crop Info
-          React.createElement('div', { className: 'text-sm text-gray-600' },
-            `Crop: ${Math.round(cropData.x)}%, ${Math.round(cropData.y)}% (${Math.round(cropData.width)}% × ${Math.round(cropData.height)}%)`
           )
         ),
         
@@ -2828,13 +2827,14 @@ export default function MainApp() {
             
             // Crop Selection Area
             React.createElement('div', {
-              className: 'absolute border-2 border-blue-500 bg-blue-100 bg-opacity-20 cursor-move',
+              className: 'absolute bg-purple-100 bg-opacity-20 cursor-move shadow-[0_0_20px_rgba(168,85,247,0.6)] marching-ants',
               style: {
                 left: `${cropData.x}%`,
                 top: `${cropData.y}%`,
                 width: `${cropData.width}%`,
                 height: `${cropData.height}%`,
-                pointerEvents: 'all'
+                pointerEvents: 'all',
+                boxShadow: '0 0 20px rgba(168,85,247,0.6), 0 0 40px rgba(168,85,247,0.4), 0 0 60px rgba(168,85,247,0.2)'
               },
               onMouseDown: handleCropMouseDown,
               onMouseMove: handleCropMouseMove,
@@ -2843,20 +2843,47 @@ export default function MainApp() {
             },
               // Corner resize handles
               React.createElement('div', {
-                className: 'absolute -top-1 -left-1 w-3 h-3 bg-blue-500 border border-white rounded-full cursor-nw-resize',
+                className: 'absolute -top-1 -left-1 w-4 h-4 bg-purple-500 border-2 border-white rounded-full cursor-nw-resize animate-pulse shadow-lg',
+                style: { zIndex: 30 },
                 onMouseDown: (e: React.MouseEvent) => handleCropResize('nw', e)
               }),
               React.createElement('div', {
-                className: 'absolute -top-1 -right-1 w-3 h-3 bg-blue-500 border border-white rounded-full cursor-ne-resize',
+                className: 'absolute -top-1 -right-1 w-4 h-4 bg-purple-500 border-2 border-white rounded-full cursor-ne-resize animate-pulse shadow-lg',
+                style: { zIndex: 30 },
                 onMouseDown: (e: React.MouseEvent) => handleCropResize('ne', e)
               }),
               React.createElement('div', {
-                className: 'absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 border border-white rounded-full cursor-sw-resize',
+                className: 'absolute -bottom-1 -left-1 w-4 h-4 bg-purple-500 border-2 border-white rounded-full cursor-sw-resize animate-pulse shadow-lg',
+                style: { zIndex: 30 },
                 onMouseDown: (e: React.MouseEvent) => handleCropResize('sw', e)
               }),
               React.createElement('div', {
-                className: 'absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 border border-white rounded-full cursor-se-resize',
+                className: 'absolute -bottom-1 -right-1 w-4 h-4 bg-purple-500 border-2 border-white rounded-full cursor-se-resize animate-pulse shadow-lg',
+                style: { zIndex: 30 },
                 onMouseDown: (e: React.MouseEvent) => handleCropResize('se', e)
+              }),
+              
+              
+              // Side resize handles
+              React.createElement('div', {
+                className: 'absolute -top-1 left-1/2 transform -translate-x-1/2 w-4 h-4 bg-purple-500 border-2 border-white rounded-full cursor-n-resize animate-pulse shadow-lg',
+                style: { zIndex: 30 },
+                onMouseDown: (e: React.MouseEvent) => handleCropResize('n', e)
+              }),
+              React.createElement('div', {
+                className: 'absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-4 h-4 bg-purple-500 border-2 border-white rounded-full cursor-s-resize animate-pulse shadow-lg',
+                style: { zIndex: 30 },
+                onMouseDown: (e: React.MouseEvent) => handleCropResize('s', e)
+              }),
+              React.createElement('div', {
+                className: 'absolute -right-1 top-1/2 transform -translate-y-1/2 w-4 h-4 bg-purple-500 border-2 border-white rounded-full cursor-e-resize animate-pulse shadow-lg',
+                style: { zIndex: 30 },
+                onMouseDown: (e: React.MouseEvent) => handleCropResize('e', e)
+              }),
+              React.createElement('div', {
+                className: 'absolute -left-1 top-1/2 transform -translate-y-1/2 w-4 h-4 bg-purple-500 border-2 border-white rounded-full cursor-w-resize animate-pulse shadow-lg',
+                style: { zIndex: 30 },
+                onMouseDown: (e: React.MouseEvent) => handleCropResize('w', e)
               })
             )
           )
@@ -2864,30 +2891,63 @@ export default function MainApp() {
         
         // Action Buttons
         React.createElement('div', { 
-          className: 'flex items-center justify-between p-6 border-t border-gray-200' 
+          className: 'p-6 border-t border-gray-200' 
         },
-          React.createElement('div', { className: 'flex items-center space-x-2' },
-            React.createElement('button', {
-              onClick: () => setCropData({ x: 0, y: 0, width: 100, height: 100 }),
-              className: 'px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors'
-            }, 'Reset Crop'),
-            React.createElement('button', {
-              onClick: () => setRotation(0),
-              className: 'px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors'
-            }, 'Reset Rotation')
+          // Rotation Controls - Centered
+          React.createElement('div', { 
+            className: 'flex items-center justify-center mb-4' 
+          },
+            React.createElement('div', { className: 'flex items-center space-x-2' },
+              React.createElement('span', { className: 'text-sm font-medium text-gray-700' }, 'Rotate:'),
+              React.createElement('button', {
+                onClick: handleRotateLeft,
+                className: 'p-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors',
+                title: 'Rotate Left'
+              },
+                React.createElement('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                  React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' })
+                )
+              ),
+              React.createElement('button', {
+                onClick: handleRotateRight,
+                className: 'p-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors',
+                title: 'Rotate Right'
+              },
+                React.createElement('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                  React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M20 4v5h-.582m0 0a8.001 8.001 0 00-15.356 2m15.356-2H15m5 11v-5h-.581m0 0a8.003 8.003 0 01-15.357 2m15.357 2H15' })
+                )
+              ),
+              React.createElement('span', { className: 'text-sm text-gray-500 ml-2' }, `${rotation}°`)
+            )
           ),
-          React.createElement('div', { className: 'flex items-center space-x-4' },
-            React.createElement('button', {
-              onClick: handleCropCancel,
-              className: 'px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors'
-            }, 'Cancel'),
-            React.createElement('button', {
-              onClick: handleCropExplain,
-              disabled: isLoading,
-              className: 'px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2'
-            },
-              isLoading && React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-white' }),
-              React.createElement('span', {}, isLoading ? 'Reading text from image...' : 'Explain')
+          
+          // Bottom Action Buttons
+          React.createElement('div', { 
+            className: 'flex items-center justify-between' 
+          },
+            React.createElement('div', { className: 'flex items-center space-x-2' },
+              React.createElement('button', {
+                onClick: () => setCropData({ x: 0, y: 0, width: 100, height: 100 }),
+                className: 'px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors'
+              }, 'Reset Crop'),
+              React.createElement('button', {
+                onClick: () => setRotation(0),
+                className: 'px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors'
+              }, 'Reset Rotation')
+            ),
+            React.createElement('div', { className: 'flex items-center space-x-4' },
+              React.createElement('button', {
+                onClick: handleCropCancel,
+                className: 'px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors'
+              }, 'Cancel'),
+              React.createElement('button', {
+                onClick: handleCropExplain,
+                disabled: isLoading,
+                className: 'px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2'
+              },
+                isLoading && React.createElement('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-white' }),
+                React.createElement('span', {}, isLoading ? 'Reading text from image...' : 'Explain')
+              )
             )
           )
         )
