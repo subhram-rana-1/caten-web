@@ -3128,7 +3128,7 @@ export default function MainApp() {
 
         // Right Side - Explanations Card (50%) - Only show for Text and Words tabs
         displayedTab !== 'image' && React.createElement('div', { className: 'w-1/2' },
-          React.createElement('div', { className: 'bg-white rounded-2xl shadow-lg shadow-purple-100 p-6 h-full flex flex-col' },
+          React.createElement('div', { className: 'bg-white rounded-2xl shadow-lg shadow-purple-100 p-6 h-[600px] flex flex-col' },
             // Header
             React.createElement('div', { className: 'bg-purple-500 rounded-lg h-10 flex items-center justify-center mb-6' },
               React.createElement('h3', { className: 'text-lg font-normal text-white' }, 'Explanations')
@@ -3167,7 +3167,7 @@ export default function MainApp() {
             React.createElement('div', { 
               ref: explanationSectionRef,
               key: explanationKey,
-              className: 'h-[500px] overflow-y-auto space-y-4' 
+              className: 'flex-1 overflow-y-auto space-y-4' 
             },
               
               
