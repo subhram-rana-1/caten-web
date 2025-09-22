@@ -1357,7 +1357,7 @@ export default function MainApp() {
           return;
         }
         
-        // Check for error message
+        // Check for error message 
         if (data.error_code) {
           console.error('❌ Error: ' + data.error_code + ' - ' + data.error_message);
           showError('Error: ' + data.error_code + ' - ' + data.error_message);
