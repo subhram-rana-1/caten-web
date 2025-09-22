@@ -2168,7 +2168,7 @@ export default function MainApp() {
             }
           }, 
             // Word-by-word hover effects 
-            ['Enhance', 'Vocabulary', 'With'].map((word, index) => 
+            ['Enhance', 'Your', 'Vocabulary', 'With'].map((word, index) => 
               React.createElement('span', {
                 key: index,
                 className: 'inline-block hover:scale-110 transition-transform duration-300 mx-1',
