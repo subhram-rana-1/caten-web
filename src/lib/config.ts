@@ -1,5 +1,8 @@
 // Configuration constants for the application
 export const CONFIG = {
+  // API Configuration
+  API_BASE_URL: 'https://caten-blush.vercel.app',
+  
   // Maximum number of words that can be added at once in the words tab
   MAX_WORDS_AT_ONCE: 10,
   
