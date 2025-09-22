@@ -1295,7 +1295,7 @@ export default function MainApp() {
     }
 
     // Create new WebSocket connection
-    const ws = new WebSocket('ws://localhost:8000/api/v1/words-explanation-v2');
+    const ws = new WebSocket(`${CONFIG.API_BASE_URL.replace('https://', 'wss://')}/api/v1/words-explanation-v2`);
     setWebsocket(ws);
 
     ws.onopen = function(event) {
@@ -1357,7 +1357,7 @@ export default function MainApp() {
           return;
         }
         
-        // Check for error message
+        // Check for error message 
         if (data.error_code) {
           console.error('❌ Error: ' + data.error_code + ' - ' + data.error_message);
           showError('Error: ' + data.error_code + ' - ' + data.error_message);
