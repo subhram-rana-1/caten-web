@@ -2354,25 +2354,25 @@ export default function MainApp() {
                 React.createElement('button', {
                   ref: (el) => { tabRefs.current.image = el as HTMLButtonElement; },
                   onClick: () => handleTabChange('image'),
-                  className: `relative z-10 flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 text-lg font-normal transition-all duration-200 hover:scale-105 ${activeTab === 'image' ? 'text-white' : 'text-gray-600 hover:text-purple-700 hover:bg-purple-200'}`
+                  className: `relative z-10 flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 text-lg font-normal transition-all duration-200 ${activeTab === 'image' ? 'text-white' : 'text-gray-600 hover:text-purple-700 hover:bg-purple-200'}`
                 }, 'Image'),
                 React.createElement('button', {
                   ref: (el) => { tabRefs.current.text = el as HTMLButtonElement; },
                   onClick: () => handleTabChange('text'),
-                  className: `relative z-10 flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 text-lg font-normal transition-all duration-200 hover:scale-105 ${activeTab === 'text' ? 'text-white' : 'text-gray-600 hover:text-purple-700 hover:bg-purple-200'}`
+                  className: `relative z-10 flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 text-lg font-normal transition-all duration-200 ${activeTab === 'text' ? 'text-white' : 'text-gray-600 hover:text-purple-700 hover:bg-purple-200'}`
                 }, 'Text'),
                 React.createElement('button', {
                   ref: (el) => { tabRefs.current.words = el as HTMLButtonElement; },
                   onClick: () => handleTabChange('words'),
-                  className: `relative z-10 flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 text-lg font-normal transition-all duration-200 hover:scale-105 ${activeTab === 'words' ? 'text-white' : 'text-gray-600 hover:text-purple-700 hover:bg-purple-200'}`
+                  className: `relative z-10 flex-1 h-full inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 text-lg font-normal transition-all duration-200 ${activeTab === 'words' ? 'text-white' : 'text-gray-600 hover:text-purple-700 hover:bg-purple-200'}`
                 }, 'Words')
               )
             ),
             // Image Tab Content
-            displayedTab === 'image' && React.createElement('div', { className: `h-[384px] flex flex-col tab-content relative ${activeTab === 'image' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
-              React.createElement('div', { className: 'flex flex-col flex-1' },
+            displayedTab === 'image' && React.createElement('div', { className: `h-[400px] flex flex-col tab-content relative ${activeTab === 'image' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
+              React.createElement('div', { className: 'flex flex-col flex-1 relative' },
                 React.createElement('div', {
-                  className: `relative border border-dashed rounded-xl p-12 transition-all duration-300 cursor-pointer transform hover:scale-[1.02] max-w-4xl mx-auto flex-1 flex items-center justify-center ${dragActive ? 'border-primary-500 bg-primary-50' : 'border-primary-200 hover:border-primary-300 bg-primary-25'} ${isLoading ? 'pointer-events-none opacity-50' : ''}`,
+                  className: `relative border border-dashed rounded-xl p-8 transition-all duration-300 cursor-pointer transform hover:scale-[1.02] max-w-5xl mx-auto flex-1 flex items-center justify-center ${dragActive ? 'border-primary-500 bg-primary-50' : 'border-primary-200 hover:border-primary-300 bg-primary-25'} ${isLoading ? 'pointer-events-none opacity-50' : ''}`,
                 onDragEnter: (e) => { e.preventDefault(); setDragActive(true); },
                 onDragLeave: (e) => { e.preventDefault(); setDragActive(false); },
                 onDragOver: (e) => { e.preventDefault(); setDragActive(true); },
@@ -2409,7 +2409,8 @@ export default function MainApp() {
                       isLoading ? 'Processing image...' : 'Drop, Upload or Paste Image containing texts'
                     ),
                     React.createElement('p', { className: 'text-sm text-gray-600' }, 'Supporting formats: JPG, PNG, JPEG, HEIC'),
-                    React.createElement('p', { className: 'text-xs text-gray-500' }, 'Or use Ctrl+V (Windows) / Cmd+V (Mac) to paste from clipboard')
+                    React.createElement('p', { className: 'text-xs text-gray-500' }, 'Or use Ctrl+V (Windows) / Cmd+V (Mac) to paste from clipboard'),
+                    React.createElement('p', { className: 'text-xs text-gray-500' }, 'Maximum file size: 5MB')
                   ),
 
                   React.createElement('button', {
@@ -2418,28 +2419,25 @@ export default function MainApp() {
                   }, isLoading ? 'Processing...' : 'Browse')
                 )
                 ),
-                React.createElement('div', { className: 'text-center mt-4 mb-4' },
-                  React.createElement('p', { className: 'text-xs text-gray-500' }, 'Maximum file size: 5MB')
-                )
-              ),
-              
-              // Get Power Words button on image tab - only show when text is empty
-              (!text || !text.trim()) && React.createElement('div', { className: 'flex justify-end mt-2 px-6' },
-                React.createElement('button', {
-                  onClick: handlePowerWords,
-                  disabled: isLoadingPowerWords,
-                  className: `inline-flex items-center justify-center rounded-md font-medium h-6 px-2 text-xs transition-all duration-200 transform hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] ${
+                
+                // Get Power Words button - positioned below the file size text
+                (!text || !text.trim()) && React.createElement('div', { className: 'flex justify-center mt-2' },
+                  React.createElement('button', {
+                    onClick: handlePowerWords,
+                    disabled: isLoadingPowerWords,
+                    className: `inline-flex items-center justify-center rounded-md font-medium h-7 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] ${
+                      isLoadingPowerWords 
+                        ? 'bg-purple-400 text-white cursor-not-allowed' 
+                        : 'vibgyor-gradient text-white hover:shadow-xl'
+                    }`
+                  },
                     isLoadingPowerWords 
-                      ? 'bg-purple-400 text-white cursor-not-allowed' 
-                      : 'vibgyor-gradient text-white hover:shadow-xl'
-                  }`
-                },
-                isLoadingPowerWords 
-                  ? React.createElement('div', { className: 'animate-spin rounded-full h-2 w-2 border-b border-white mr-1' })
-                  : React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'white', strokeWidth: '2', viewBox: '0 0 24 24' },
-                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a1 1 0 01-1-1V9a1 1 0 011-1h1a2 2 0 100-4H4a1 1 0 01-1-1V4a1 1 0 011-1h3a1 1 0 001-1V4z' })
-                    ),
-                isLoadingPowerWords ? 'Loading...' : 'Get Power Words'
+                      ? React.createElement('div', { className: 'animate-spin rounded-full h-2.5 w-2.5 border-b-2 border-white mr-1.5' })
+                      : React.createElement('svg', { className: 'w-3.5 h-3.5 mr-1.5', fill: 'none', stroke: 'white', strokeWidth: '2', viewBox: '0 0 24 24' },
+                          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a1 1 0 01-1-1V9a1 1 0 011-1h1a2 2 0 100-4H4a1 1 0 01-1-1V4a1 1 0 011-1h3a1 1 0 001-1V4z' })
+                        ),
+                    isLoadingPowerWords ? 'Loading...' : 'Get Power Words'
+                  )
                 )
               )
               
