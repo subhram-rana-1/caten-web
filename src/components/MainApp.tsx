@@ -2120,7 +2120,7 @@ export default function MainApp() {
               key: key++,
               className: 'bg-purple-200 border border-purple-300 px-1 rounded relative cursor-pointer hover:bg-purple-300 hover:border-purple-400 transition-all duration-300 transform hover:scale-125 hover:shadow-lg hover:z-10 hover:rotate-1'
             }, wordText, React.createElement('button', {
-              onClick: (e) => {
+              onClick: (e: React.MouseEvent<HTMLButtonElement>) => {
                 console.log('🔴 Cancel button clicked!');
                 console.log('🎯 Event target:', e.target);
                 console.log('🎯 Word text:', wordText);
