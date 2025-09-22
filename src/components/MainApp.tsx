@@ -109,6 +109,7 @@ export default function MainApp() {
   }, []);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingPowerWords, setIsLoadingPowerWords] = useState(false);
   const [isSmartSelecting, setIsSmartSelecting] = useState(false);
   const [isExplaining, setIsExplaining] = useState(false);
   const [isSmartExplaining, setIsSmartExplaining] = useState(false);
@@ -142,6 +143,7 @@ export default function MainApp() {
   const [loadingMore, setLoadingMore] = useState<Set<string>>(new Set());
   const [explanationSearchTerm, setExplanationSearchTerm] = useState('');
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [smartSelectAbortController, setSmartSelectAbortController] = useState<AbortController | null>(null);
   const [wordLimitAlert, setWordLimitAlert] = useState<string | null>(null);
   const [showErrorBanner, setShowErrorBanner] = useState(false);
   const [showWordLimitAlert, setShowWordLimitAlert] = useState(false);
@@ -549,6 +551,49 @@ export default function MainApp() {
       showError('Failed to load random paragraph. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Handle power words button click with API call
+  const handlePowerWords = async () => {
+    // Switch to text tab if not already there
+    if (activeTab !== 'text') {
+      setActiveTab('text');
+      setDisplayedTab('text');
+    }
+    
+    setIsLoadingPowerWords(true);
+    
+    try {
+      const response = await fetch('/api/v1/get-random-paragraph', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const data = await response.json();
+      console.log('Power Words API Response:', data); // Debug log
+      
+      if (data.text) {
+        const paragraphText = data.text;
+        console.log('Using power words text:', paragraphText); // Debug log
+        // Validate word limit before setting text
+        if (!validateWordLimit(paragraphText)) {
+          return; // Don't set text if it exceeds limit
+        }
+        
+        setText(paragraphText);
+        toast.success('Power words paragraph loaded!');
+      } else {
+        console.error('Unexpected API response format:', data);
+        throw new Error('No text received from API');
+      }
+    } catch (error) {
+      console.error('Error fetching power words:', error);
+      showError('Failed to load power words. Please try again.');
+    } finally {
+      setIsLoadingPowerWords(false);
     }
   };
 
@@ -998,6 +1043,9 @@ export default function MainApp() {
       return;
     }
 
+    // Create new AbortController for this request
+    const controller = new AbortController();
+    setSmartSelectAbortController(controller);
     setIsSmartSelecting(true);
 
     try {
@@ -1005,6 +1053,7 @@ export default function MainApp() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
+        signal: controller.signal,
       });
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -1024,10 +1073,15 @@ export default function MainApp() {
       toast.success(`Selected ${importantWords.length} important words`);
       
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Smart word selection was cancelled');
+        return;
+      }
       console.error('Error selecting words:', error);
       showError('Failed to select words. Please try again.');
     } finally {
       setIsSmartSelecting(false);
+      setSmartSelectAbortController(null);
     }
   };
 
@@ -1131,6 +1185,14 @@ export default function MainApp() {
       }
       
       toast.info('Explanation stopped');
+    }
+    
+    // Also stop smart selecting if it's running
+    if (isSmartSelecting && smartSelectAbortController) {
+      smartSelectAbortController.abort();
+      setIsSmartSelecting(false);
+      setSmartSelectAbortController(null);
+      toast.info('Smart word selection stopped');
     }
   };
 
@@ -2307,9 +2369,10 @@ export default function MainApp() {
               )
             ),
             // Image Tab Content
-            displayedTab === 'image' && React.createElement('div', { className: `h-[384px] flex flex-col tab-content ${activeTab === 'image' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
-              React.createElement('div', {
-                className: `relative border border-dashed rounded-xl p-12 transition-all duration-300 cursor-pointer transform hover:scale-[1.02] max-w-4xl mx-auto flex-1 flex items-center justify-center ${dragActive ? 'border-primary-500 bg-primary-50' : 'border-primary-200 hover:border-primary-300 bg-primary-25'} ${isLoading ? 'pointer-events-none opacity-50' : ''}`,
+            displayedTab === 'image' && React.createElement('div', { className: `h-[384px] flex flex-col tab-content relative ${activeTab === 'image' ? 'animate-tab-fade-in' : 'animate-tab-fade-out'}` },
+              React.createElement('div', { className: 'flex flex-col flex-1' },
+                React.createElement('div', {
+                  className: `relative border border-dashed rounded-xl p-12 transition-all duration-300 cursor-pointer transform hover:scale-[1.02] max-w-4xl mx-auto flex-1 flex items-center justify-center ${dragActive ? 'border-primary-500 bg-primary-50' : 'border-primary-200 hover:border-primary-300 bg-primary-25'} ${isLoading ? 'pointer-events-none opacity-50' : ''}`,
                 onDragEnter: (e) => { e.preventDefault(); setDragActive(true); },
                 onDragLeave: (e) => { e.preventDefault(); setDragActive(false); },
                 onDragOver: (e) => { e.preventDefault(); setDragActive(true); },
@@ -2354,10 +2417,32 @@ export default function MainApp() {
                     disabled: isLoading
                   }, isLoading ? 'Processing...' : 'Browse')
                 )
+                ),
+                React.createElement('div', { className: 'text-center mt-4 mb-4' },
+                  React.createElement('p', { className: 'text-xs text-gray-500' }, 'Maximum file size: 5MB')
+                )
               ),
-              React.createElement('div', { className: 'text-center mt-4 mb-4' },
-                React.createElement('p', { className: 'text-xs text-gray-500' }, 'Maximum file size: 5MB')
+              
+              // Get Power Words button on image tab - only show when text is empty
+              (!text || !text.trim()) && React.createElement('div', { className: 'flex justify-end mt-2 px-6' },
+                React.createElement('button', {
+                  onClick: handlePowerWords,
+                  disabled: isLoadingPowerWords,
+                  className: `inline-flex items-center justify-center rounded-md font-medium h-6 px-2 text-xs transition-all duration-200 transform hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] ${
+                    isLoadingPowerWords 
+                      ? 'bg-purple-400 text-white cursor-not-allowed' 
+                      : 'vibgyor-gradient text-white hover:shadow-xl'
+                  }`
+                },
+                isLoadingPowerWords 
+                  ? React.createElement('div', { className: 'animate-spin rounded-full h-2 w-2 border-b border-white mr-1' })
+                  : React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'white', strokeWidth: '2', viewBox: '0 0 24 24' },
+                      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a1 1 0 01-1-1V9a1 1 0 011-1h1a2 2 0 100-4H4a1 1 0 01-1-1V4a1 1 0 011-1h3a1 1 0 001-1V4z' })
+                    ),
+                isLoadingPowerWords ? 'Loading...' : 'Get Power Words'
+                )
               )
+              
             ),
 
             // Text Tab Content
@@ -2399,7 +2484,7 @@ export default function MainApp() {
 
               // Text Area with Smart Explain Overlay
               React.createElement('div', { className: 'relative flex flex-col flex-1' },
-                (isProcessingImage || text || displayedTab === 'text')
+                (isProcessingImage || text || displayedTab === 'text' || activeTab === 'text')
                   ? React.createElement('div', { className: 'relative' },
                       text ? React.createElement('div', {
                         ref: textCanvasRef,
@@ -2414,6 +2499,102 @@ export default function MainApp() {
                         onDoubleClick: handleDoubleClick
                       }),
                       
+                      // Get Power Words button - only show when text is empty
+                      !text.trim() && React.createElement('button', {
+                        onClick: handlePowerWords,
+                        disabled: isLoadingPowerWords,
+                        className: `absolute bottom-4 right-4 inline-flex items-center justify-center rounded-md font-medium h-6 px-2 text-xs transition-all duration-200 transform hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] ${
+                          isLoadingPowerWords 
+                            ? 'bg-purple-400 text-white cursor-not-allowed' 
+                            : 'vibgyor-gradient text-white hover:shadow-xl'
+                        }`
+                      },
+                        isLoadingPowerWords 
+                          ? React.createElement('div', { className: 'animate-spin rounded-full h-2 w-2 border-b border-white mr-1' })
+                          : React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'white', strokeWidth: '2', viewBox: '0 0 24 24' },
+                              React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a1 1 0 01-1-1V9a1 1 0 011-1h1a2 2 0 100-4H4a1 1 0 01-1-1V4a1 1 0 011-1h3a1 1 0 001-1V4z' })
+                            ),
+                        isLoadingPowerWords ? 'Loading...' : 'Get Power Words'
+                      ),
+                      
+                      // Power Words loading overlay for text canvas
+                      isLoadingPowerWords && React.createElement('div', { 
+                        className: 'absolute inset-0 bg-white bg-opacity-80 backdrop-blur-md flex items-center justify-center z-10 rounded-lg'
+                      },
+                        React.createElement('div', { className: 'text-center' },
+                          React.createElement('div', { className: 'mb-6' },
+                            // Solid purple animated icon
+                            React.createElement('div', { className: 'relative w-16 h-16 mx-auto' },
+                              // Main solid purple circle with pulse animation
+                              React.createElement('div', { 
+                                className: 'absolute inset-0 bg-purple-500 rounded-full animate-pulse',
+                                style: { animationDuration: '1.5s' }
+                              }),
+                              // Inner rotating element with creative dynamic icon
+                              React.createElement('div', { 
+                                className: 'absolute inset-2 bg-purple-600 rounded-full flex items-center justify-center animate-spin',
+                                style: { animationDuration: '2s' }
+                              },
+                                React.createElement('svg', { 
+                                  className: 'w-8 h-8 text-white', 
+                                  fill: 'currentColor', 
+                                  viewBox: '0 0 24 24' 
+                                },
+                                  // Creative brain/lightbulb icon for difficult words
+                                  React.createElement('path', { 
+                                    d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' 
+                                  }),
+                                  // Additional sparkle elements
+                                  React.createElement('circle', { 
+                                    cx: '8', 
+                                    cy: '8', 
+                                    r: '1', 
+                                    fill: 'white', 
+                                    opacity: '0.8' 
+                                  }),
+                                  React.createElement('circle', { 
+                                    cx: '16', 
+                                    cy: '8', 
+                                    r: '1', 
+                                    fill: 'white', 
+                                    opacity: '0.6' 
+                                  }),
+                                  React.createElement('circle', { 
+                                    cx: '12', 
+                                    cy: '16', 
+                                    r: '0.8', 
+                                    fill: 'white', 
+                                    opacity: '0.7' 
+                                  })
+                                )
+                              ),
+                              // Outer ring with different animation
+                              React.createElement('div', { 
+                                className: 'absolute -inset-1 border-4 border-purple-400 rounded-full animate-ping',
+                                style: { animationDuration: '3s' }
+                              })
+                            )
+                          ),
+                          React.createElement('h3', { className: 'text-xl font-semibold text-purple-700 mb-3' }, 'Preparing a paragraph of difficult words'),
+                          React.createElement('div', { className: 'flex items-center justify-center mt-4' },
+                            React.createElement('div', { className: 'flex space-x-2' },
+                              React.createElement('div', { 
+                                className: 'w-3 h-3 bg-purple-500 rounded-full animate-bounce',
+                                style: { animationDelay: '0s' }
+                              }),
+                              React.createElement('div', { 
+                                className: 'w-3 h-3 bg-purple-500 rounded-full animate-bounce',
+                                style: { animationDelay: '0.2s' }
+                              }),
+                              React.createElement('div', { 
+                                className: 'w-3 h-3 bg-purple-500 rounded-full animate-bounce',
+                                style: { animationDelay: '0.4s' }
+                              })
+                            )
+                          )
+                        )
+                      ),
+
                       // Enhanced Image Processing Overlay for text canvas
                       isProcessingImage && React.createElement('div', { 
                         className: 'absolute inset-0 bg-white bg-opacity-80 backdrop-blur-md flex items-center justify-center z-10 rounded-lg'
@@ -2473,7 +2654,7 @@ export default function MainApp() {
                             }
                           }
                         },
-                        className: `w-full h-[200px] px-4 py-3 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] resize-none overflow-y-auto transition-all duration-200 ${isPreparingExplanations || isSmartSelecting || isProcessingImage ? 'blur-[0.5px]' : ''}`,
+                        className: `w-full h-[280px] px-4 py-3 border border-purple-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 hover:border-purple-500 hover:shadow-[0_0_8px_rgba(168,85,247,0.3)] resize-none overflow-y-auto transition-all duration-200 ${isPreparingExplanations || isSmartSelecting || isProcessingImage ? 'blur-[0.5px]' : ''}`,
                         disabled: textExplanations.length > 0
                       }),
                       
@@ -2537,50 +2718,89 @@ export default function MainApp() {
                         )
                       ),
 
-                      
-                      // Random paragraph button - only show when text is empty
-                      !text.trim() && React.createElement('button', {
-                        onClick: handleRandomParagraph,
-                        disabled: isLoading,
-                        className: `absolute bottom-3 right-3 inline-flex items-center justify-center rounded-lg font-medium h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] ${
-                          isLoading 
-                            ? 'bg-purple-400 text-white cursor-not-allowed' 
-                            : 'bg-purple-500 text-white hover:bg-purple-600'
-                        }`
-                      },
-                        isLoading 
-                          ? React.createElement('div', { className: 'animate-spin rounded-full h-3 w-3 border-b border-white mr-1' })
-                          : React.createElement('svg', { className: 'w-4 h-4 mr-1', fill: 'none', stroke: 'white', strokeWidth: '2', viewBox: '0 0 24 24' },
-                              React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a1 1 0 01-1-1V9a1 1 0 011-1h1a2 2 0 100-4H4a1 1 0 01-1-1V4a1 1 0 011-1h3a1 1 0 001-1V4z' })
-                            ),
-                        isLoading ? 'Loading...' : 'Power Words Pack'
-                      )
                     ),
 
                 
                 // Smart Select Overlay
                 isSmartSelecting && React.createElement('div', { className: 'absolute top-0 left-0 right-0 h-[280px] bg-white bg-opacity-80 backdrop-blur-md flex items-center justify-center z-10 rounded-lg' },
-                  React.createElement('div', { className: 'loading-content' },
-                    React.createElement('div', { className: 'loading-icon smart-select-icon' },
-                      React.createElement('svg', { 
-                        className: 'w-full h-full text-purple-500', 
-                        fill: 'none', 
-                        stroke: 'currentColor', 
-                        viewBox: '0 0 24 24' 
-                      },
-                        React.createElement('path', { 
-                          strokeLinecap: 'round', 
-                          strokeLinejoin: 'round', 
-                          strokeWidth: 2, 
-                          d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' 
+                  React.createElement('div', { className: 'text-center' },
+                    React.createElement('div', { className: 'mb-6' },
+                      // Dynamic solid purple creative icon
+                      React.createElement('div', { className: 'relative w-16 h-16 mx-auto' },
+                        // Main solid purple circle with pulse animation
+                        React.createElement('div', {
+                          className: 'absolute inset-0 bg-purple-500 rounded-full animate-pulse',
+                          style: { animationDuration: '1.5s' }
+                        }),
+                        // Inner rotating element with creative dynamic icon
+                        React.createElement('div', {
+                          className: 'absolute inset-2 bg-purple-600 rounded-full flex items-center justify-center animate-spin',
+                          style: { animationDuration: '2s' }
+                        },
+                          React.createElement('svg', {
+                            className: 'w-8 h-8 text-white',
+                            fill: 'currentColor',
+                            viewBox: '0 0 24 24'
+                          },
+                            // Creative brain/analysis icon for difficult words
+                            React.createElement('path', {
+                              d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z'
+                            }),
+                            // Additional sparkle elements for analysis
+                            React.createElement('circle', {
+                              cx: '8',
+                              cy: '8',
+                              r: '1',
+                              fill: 'white',
+                              opacity: '0.8'
+                            }),
+                            React.createElement('circle', {
+                              cx: '16',
+                              cy: '8',
+                              r: '1',
+                              fill: 'white',
+                              opacity: '0.6'
+                            }),
+                            React.createElement('circle', {
+                              cx: '12',
+                              cy: '16',
+                              r: '0.8',
+                              fill: 'white',
+                              opacity: '0.7'
+                            }),
+                            // Analysis lines
+                            React.createElement('path', {
+                              d: 'M6 10h2M6 12h4M6 14h3',
+                              stroke: 'white',
+                              strokeWidth: '1',
+                              strokeLinecap: 'round',
+                              opacity: '0.8'
+                            })
+                          )
+                        ),
+                        // Outer ring with different animation
+                        React.createElement('div', {
+                          className: 'absolute -inset-1 border-4 border-purple-400 rounded-full animate-ping',
+                          style: { animationDuration: '3s' }
                         })
                       )
                     ),
-                    React.createElement('h3', { className: 'loading-title' }, 'Analyzing text for difficult words'),
-                    React.createElement('div', { className: 'pulse-dots' },
-                      React.createElement('span', {}, '●'),
-                      React.createElement('span', {}, '●'),
-                      React.createElement('span', {}, '●')
+                    React.createElement('h3', { className: 'text-xl font-semibold text-purple-700 mb-3' }, 'Analyzing text for difficult words'),
+                    React.createElement('div', { className: 'flex items-center justify-center mt-4' },
+                      React.createElement('div', { className: 'flex space-x-2' },
+                        React.createElement('div', {
+                          className: 'w-3 h-3 bg-purple-500 rounded-full animate-bounce',
+                          style: { animationDelay: '0s' }
+                        }),
+                        React.createElement('div', {
+                          className: 'w-3 h-3 bg-purple-500 rounded-full animate-bounce',
+                          style: { animationDelay: '0.2s' }
+                        }),
+                        React.createElement('div', {
+                          className: 'w-3 h-3 bg-purple-500 rounded-full animate-bounce',
+                          style: { animationDelay: '0.4s' }
+                        })
+                      )
                     )
                   )
                 ),
@@ -2709,7 +2929,7 @@ export default function MainApp() {
               React.createElement('div', { className: 'flex justify-between items-start mt-auto pt-3' },
                 // Left Button Group - Clear Buttons
                 React.createElement('div', { className: 'flex flex-col space-y-3' },
-                  text.trim() && !getCurrentTabLoadingStates().isSmartExplaining && !getCurrentTabLoadingStates().isExplaining && React.createElement('button', {
+                  text.trim() && !getCurrentTabLoadingStates().isSmartExplaining && !getCurrentTabLoadingStates().isExplaining && !isSmartSelecting && React.createElement('button', {
                     onClick: handleClearText,
                     className: 'inline-flex items-center justify-center rounded-lg font-medium border border-red-300 text-red-600 hover:bg-red-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
@@ -2719,7 +2939,7 @@ export default function MainApp() {
                     'Clear Text'
                   ),
                   
-                  textExplanations.length > 0 && !getCurrentTabLoadingStates().isSmartExplaining && !getCurrentTabLoadingStates().isExplaining && React.createElement('button', {
+                  textExplanations.length > 0 && !getCurrentTabLoadingStates().isSmartExplaining && !getCurrentTabLoadingStates().isExplaining && !isSmartSelecting && React.createElement('button', {
                     onClick: handleClearTextExplanations,
                     className: 'inline-flex items-center justify-center rounded-lg font-medium border border-red-300 text-red-600 hover:bg-red-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
@@ -2734,7 +2954,8 @@ export default function MainApp() {
                 React.createElement('div', { className: 'flex flex-col space-y-3' },
                   (text.trim() && !isSmartSelecting && !getCurrentTabLoadingStates().isSmartExplaining && !getCurrentTabLoadingStates().isExplaining && (displayedTab === 'text' ? textExplanations.length === 0 : wordsExplanations.length === 0)) && React.createElement('button', {
                     onClick: handleSmartSelectWords,
-                    className: 'inline-flex items-center justify-center rounded-lg font-medium border border-primary-300 text-primary-600 hover:bg-primary-50 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
+                    className: 'inline-flex items-center justify-center rounded-lg font-medium text-white hover:opacity-90 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]',
+                    style: { backgroundColor: '#9C5EEB' }
                   }, 
                     React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                       React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' })
@@ -2759,36 +2980,22 @@ export default function MainApp() {
                   (selectedWords.length > 0 || manualWords.length > 0) ? 
                     // When words are selected: vertical layout (stacked)
                     React.createElement('div', { className: 'flex flex-col space-y-2' },
-                      // Explain button - only show when there are words to explain
-                      selectedWords.length > 0 && !getCurrentTabLoadingStates().isExplaining && !getCurrentTabLoadingStates().isSmartExplaining && React.createElement('button', {
+                      // Explain button - only show when there are words to explain and not smart selecting
+                      selectedWords.length > 0 && !getCurrentTabLoadingStates().isExplaining && !getCurrentTabLoadingStates().isSmartExplaining && !isSmartSelecting && React.createElement('button', {
                         onClick: handleExplainWords,
                         className: 'inline-flex items-center justify-center rounded-lg font-medium bg-primary-500 text-white hover:bg-primary-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                       },
                         React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                           React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
                         ),
-                        `Explain ${selectedWords.length} word${selectedWords.length !== 1 ? 's' : ''}`
+                        `Get ${selectedWords.length} Contextual meaning${selectedWords.length !== 1 ? 's' : ''}`
                       ),
                       
                       // Smart explain button
-                      text.trim() && !getCurrentTabLoadingStates().isSmartExplaining && !getCurrentTabLoadingStates().isExplaining && (displayedTab === 'text' ? textExplanations.length === 0 : wordsExplanations.length === 0) && React.createElement('button', {
+                      text.trim() && !getCurrentTabLoadingStates().isSmartExplaining && !getCurrentTabLoadingStates().isExplaining && !isSmartSelecting && (displayedTab === 'text' ? textExplanations.length === 0 : wordsExplanations.length === 0) && React.createElement('button', {
                         onClick: handleSmartExplain,
-                        className: 'inline-flex items-center justify-center rounded-lg font-medium text-white h-8 px-3 text-xs transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg relative overflow-hidden',
-                        style: {
-                          background: 'linear-gradient(45deg, #8B5CF6, #EC4899, #EF4444, #8B5CF6, #EC4899, #EF4444)',
-                          backgroundSize: '300% 300%',
-                          animation: 'gradientShift 3s ease infinite'
-                        }
-                      }, 
-                        React.createElement('style', {}, `
-                          @keyframes gradientShift {
-                            0% { background-position: 0% 50%; }
-                            25% { background-position: 100% 50%; }
-                            50% { background-position: 100% 100%; }
-                            75% { background-position: 0% 100%; }
-                            100% { background-position: 0% 50%; }
-                          }
-                        `),
+                        className: 'vibgyor-gradient inline-flex items-center justify-center rounded-lg font-medium text-white h-8 px-3 text-xs transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl relative overflow-hidden'
+                      },
                         React.createElement('div', { className: 'absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300' }),
                         React.createElement('svg', { className: 'w-3 h-3 mr-1 relative z-10', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                           React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' }),
@@ -2800,24 +3007,10 @@ export default function MainApp() {
                     // When no words selected: horizontal layout (side by side)
                     React.createElement('div', { className: 'flex space-x-2' },
                       // Smart explain button
-                      text.trim() && !getCurrentTabLoadingStates().isSmartExplaining && !getCurrentTabLoadingStates().isExplaining && (displayedTab === 'text' ? textExplanations.length === 0 : wordsExplanations.length === 0) && React.createElement('button', {
+                      text.trim() && !getCurrentTabLoadingStates().isSmartExplaining && !getCurrentTabLoadingStates().isExplaining && !isSmartSelecting && (displayedTab === 'text' ? textExplanations.length === 0 : wordsExplanations.length === 0) && React.createElement('button', {
                         onClick: handleSmartExplain,
-                        className: 'inline-flex items-center justify-center rounded-lg font-medium text-white h-8 px-3 text-xs transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg relative overflow-hidden',
-                        style: {
-                          background: 'linear-gradient(45deg, #8B5CF6, #EC4899, #EF4444, #8B5CF6, #EC4899, #EF4444)',
-                          backgroundSize: '300% 300%',
-                          animation: 'gradientShift 3s ease infinite'
-                        }
-                      }, 
-                        React.createElement('style', {}, `
-                          @keyframes gradientShift {
-                            0% { background-position: 0% 50%; }
-                            25% { background-position: 100% 50%; }
-                            50% { background-position: 100% 100%; }
-                            75% { background-position: 0% 100%; }
-                            100% { background-position: 0% 50%; }
-                          }
-                        `),
+                        className: 'vibgyor-gradient inline-flex items-center justify-center rounded-lg font-medium text-white h-8 px-3 text-xs transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl relative overflow-hidden'
+                      },
                         React.createElement('div', { className: 'absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300' }),
                         React.createElement('svg', { className: 'w-3 h-3 mr-1 relative z-10', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                           React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' }),
@@ -2827,8 +3020,8 @@ export default function MainApp() {
                       )
                     ),
                   
-                  // Stop button (show when streaming or smart explaining) - positioned on the right
-                  (getCurrentTabLoadingStates().isStreaming || getCurrentTabLoadingStates().isSmartExplaining) && React.createElement('button', {
+                  // Stop button (show when streaming, smart explaining, or smart selecting) - positioned on the right
+                  (getCurrentTabLoadingStates().isStreaming || getCurrentTabLoadingStates().isSmartExplaining || isSmartSelecting) && React.createElement('button', {
                     onClick: handleStopStreaming,
                     className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-8 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02]'
                   }, 
@@ -3024,7 +3217,7 @@ export default function MainApp() {
                     React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                       React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
                     ),
-                    `Explain ${manualWords.filter(word => !wordsExplainedWordNames.has(word)).length} word${manualWords.filter(word => !wordsExplainedWordNames.has(word)).length > 1 ? 's' : ''}`
+                    `Get meanings and examples of ${manualWords.filter(word => !wordsExplainedWordNames.has(word)).length} word${manualWords.filter(word => !wordsExplainedWordNames.has(word)).length > 1 ? 's' : ''}`
                   ),
                   
                   // Right side: Stop button (when explaining) - always on far right
@@ -3201,7 +3394,11 @@ export default function MainApp() {
                         })
                       )
                     ),
-                    React.createElement('h3', { className: 'text-lg font-medium text-gray-900 mb-2' }, 'No word meanings yet'),
+                    React.createElement('h3', { className: 'text-lg font-medium text-gray-900 mb-2' }, 
+                      displayedTab === 'text' 
+                        ? 'No contextual meanings and explanations yet'
+                        : 'No word meanings and explanations yet'
+                    ),
                     // React.createElement('p', { className: 'text-sm text-gray-600' }, 
                     //   displayedTab === 'text' 
                     //     ? 'Paste text and get AI-powered explanations'
