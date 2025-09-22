@@ -2015,8 +2015,8 @@ export default function MainApp() {
                 console.log('textExplanations:', textExplanations);
                 console.log('textExplainedWordNames:', textExplainedWordNames);
                 
-                // Clean the wordText (remove extra whitespace and special characters)
-                const cleanWord = wordText.trim().replace(/[^\w]/g, '');
+                // Clean the wordText (remove extra whitespace but preserve hyphens and apostrophes)
+                const cleanWord = wordText.trim().replace(/[^\w\-']/g, '');
                 console.log('Clean word:', cleanWord);
                 
                 if (!cleanWord) {
@@ -3094,7 +3094,7 @@ export default function MainApp() {
                       'data-word': explanation.word,
                       className: `bg-purple-100 rounded-xl overflow-hidden transition-all duration-300 ease-in-out hover:bg-purple-150 mr-2 ${
                         isNewCard 
-                          ? 'animate-slide-in-right' 
+                          ? 'animate-smooth-appear' 
                           : ''
                       }` 
                     },
