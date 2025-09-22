@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 
 const Header: React.FC = () => {
   return (
@@ -8,9 +9,11 @@ const Header: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-start">
           <div className="animate-pulse-slow ml-16 mt-3 mb-3">
-            <img 
+            <Image 
               src="/resources/logo_1.png" 
               alt="Caten Logo" 
+              width={44}
+              height={44}
               className="h-8 w-8 md:h-11 md:w-11 object-contain"
             />
           </div>
