@@ -4,7 +4,7 @@ const nextConfig = {
     return [
       {
         source: '/api/v1/:path*',
-        destination: 'https://caten-blush.vercel.app/api/v1/:path*',
+        destination: 'https://caten-production.up.railway.app/api/v1/:path*',
       },
     ];
   },
