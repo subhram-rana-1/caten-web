@@ -2,6 +2,7 @@
 export const CONFIG = {
   // API Configuration
   API_BASE_URL: 'https://caten-production.up.railway.app',
+  // API_BASE_URL: 'http://localhost:8000',
   
   // Maximum number of words that can be added at once in the words tab
   MAX_WORDS_AT_ONCE: 10,

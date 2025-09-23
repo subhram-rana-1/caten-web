@@ -17,6 +17,7 @@ const nextConfig = {
       {
         source: '/api/v1/:path*',
         destination: 'https://caten-production.up.railway.app/api/v1/:path*',
+        // destination: 'http://localhost:8000/api/v1/:path*',
       },
     ];
   },
