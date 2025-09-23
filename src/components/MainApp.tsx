@@ -3,9 +3,14 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { flushSync } from 'react-dom';
 import { toast } from 'sonner';
+import { Plus, X } from 'lucide-react';
 import Header from '@/components/Header';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ErrorBanner from '@/components/ErrorBanner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/Dialog';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 import { CONFIG } from '@/lib/config';
 
 type TabType = 'image' | 'text' | 'words';
@@ -148,6 +153,9 @@ export default function MainApp() {
   const [wordLimitAlert, setWordLimitAlert] = useState<string | null>(null);
   const [showErrorBanner, setShowErrorBanner] = useState(false);
   const [showWordLimitAlert, setShowWordLimitAlert] = useState(false);
+  const [showPowerWordsDialog, setShowPowerWordsDialog] = useState(false);
+  const [powerWordsTopics, setPowerWordsTopics] = useState<string[]>([]);
+  const [powerWordsInput, setPowerWordsInput] = useState('');
   const [showCropCanvas, setShowCropCanvas] = useState(false);
   const [cropData, setCropData] = useState({ x: 0, y: 0, width: 100, height: 100 });
   const [rotation, setRotation] = useState(0);
@@ -555,13 +563,22 @@ export default function MainApp() {
     }
   };
 
-  // Handle power words button click with API call
-  const handlePowerWords = async () => {
+  // Handle power words button click - show dialog
+  const handlePowerWords = () => {
     // Switch to text tab if not already there
     if (activeTab !== 'text') {
       setActiveTab('text');
       setDisplayedTab('text');
     }
+    
+    // Show the dialog for topic input
+    setShowPowerWordsDialog(true);
+  };
+
+  // Handle power words API call with topics
+  const handlePowerWordsProceed = async () => {
+    // Close dialog
+    setShowPowerWordsDialog(false);
     
     // Create abort controller for this request
     const controller = new AbortController();
@@ -569,7 +586,12 @@ export default function MainApp() {
     setIsLoadingPowerWords(true);
     
     try {
-      const response = await fetch('/api/v1/get-random-paragraph', {
+      // Build query parameters
+      const topicsParam = powerWordsTopics.length > 0 
+        ? `?topics=${encodeURIComponent(powerWordsTopics.join(','))}`
+        : '';
+      
+      const response = await fetch(`/api/v1/get-random-paragraph${topicsParam}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
@@ -608,6 +630,32 @@ export default function MainApp() {
       setPowerWordsAbortController(null);
     }
   };
+
+  // Helper functions for power words dialog
+  const handlePowerWordsKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && powerWordsInput.trim()) {
+      e.preventDefault();
+      const topic = powerWordsInput.trim();
+      
+      // Check if topic already exists
+      if (!powerWordsTopics.includes(topic)) {
+        setPowerWordsTopics(prev => [...prev, topic]);
+        setPowerWordsInput('');
+      }
+    }
+  }, [powerWordsInput, powerWordsTopics]);
+
+  const handleAddPowerWordsTopic = useCallback(() => {
+    const topic = powerWordsInput.trim();
+    if (topic && !powerWordsTopics.includes(topic)) {
+      setPowerWordsTopics(prev => [...prev, topic]);
+      setPowerWordsInput('');
+    }
+  }, [powerWordsInput, powerWordsTopics]);
+
+  const handleRemovePowerWordsTopic = useCallback((topic: string) => {
+    setPowerWordsTopics(prev => prev.filter(t => t !== topic));
+  }, []);
 
   const clearAllData = () => {
     setText('');
@@ -3696,7 +3744,90 @@ export default function MainApp() {
         }
         setShowCropCanvas(false);
       }
-    })
+    }),
+
+    // Power Words Dialog
+    React.createElement(Dialog, {
+      open: showPowerWordsDialog,
+      onOpenChange: setShowPowerWordsDialog
+    },
+      React.createElement(DialogContent, { className: 'sm:max-w-md !p-6' },
+        React.createElement(DialogHeader, {},
+          React.createElement(DialogTitle, {}, 'Get Paragraph on your own topics'),
+          // React.createElement(DialogDescription, {}, 
+          //   'Enter topic names'
+          // )
+        ),
+        
+        React.createElement('div', { className: 'space-y-4 py-4' },
+          // User instruction
+          React.createElement('div', { className: 'flex items-center space-x-2 text-sm text-gray-700' },
+            React.createElement('svg', { className: 'w-4 h-4 text-purple-500', fill: 'currentColor', viewBox: '0 0 20 20' },
+              React.createElement('path', { fillRule: 'evenodd', d: 'M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z', clipRule: 'evenodd' })
+            ),
+            React.createElement('span', {}, 'Add topics on which you want to generate a paragraph')
+          ),
+          
+          // Input section
+          React.createElement('div', { className: 'space-y-2 w-full' },
+            React.createElement('div', { className: 'flex gap-2 w-full items-stretch justify-between' },
+              React.createElement(Input, {
+                placeholder: 'Type a topic and press Enter...',
+                value: powerWordsInput,
+                onChange: (e: React.ChangeEvent<HTMLInputElement>) => setPowerWordsInput(e.target.value),
+                onKeyPress: handlePowerWordsKeyPress,
+                className: 'flex-1 min-w-0 border-purple-300 focus:border-purple-500 focus:ring-purple-500 hover:border-purple-400'
+              }),
+              React.createElement(Button, {
+                onClick: handleAddPowerWordsTopic,
+                disabled: !powerWordsInput.trim() || powerWordsTopics.includes(powerWordsInput.trim()),
+                leftIcon: React.createElement(Plus, { className: 'h-4 w-4' }),
+                className: 'flex-shrink-0 px-3 transition-all duration-200 transform hover:scale-105'
+              }, 'Add')
+            ),
+          ),
+
+          // Topics display section
+          React.createElement('div', { className: 'space-y-2' },
+            powerWordsTopics.length > 0 ? (
+              React.createElement('div', { className: 'flex flex-wrap gap-2' },
+                powerWordsTopics.map((topic) =>
+                  React.createElement(Badge, {
+                    key: topic,
+                    variant: 'secondary',
+                    removable: true,
+                    onRemove: () => handleRemovePowerWordsTopic(topic)
+                  }, topic)
+                )
+              )
+            ) : (
+              React.createElement('div', { className: 'text-center py-4 text-gray-500' },
+                React.createElement('div', { className: 'space-y-1' },
+                  React.createElement('div', { className: 'text-2xl' }, '📝'),
+                  React.createElement('p', { className: 'text-sm' }, 'No topics added yet'),
+                )
+              )
+            )
+          )
+        ),
+
+        React.createElement(DialogFooter, { className: '!flex !flex-row !justify-between items-center w-full' },
+          React.createElement(Button, {
+            variant: 'outline',
+            onClick: () => {
+              setShowPowerWordsDialog(false);
+              setPowerWordsTopics([]);
+              setPowerWordsInput('');
+            },
+            className: 'hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-all duration-200 transform hover:scale-105 px-4 py-2'
+          }, 'Cancel'),
+          React.createElement(Button, {
+            onClick: handlePowerWordsProceed,
+            className: 'bg-purple-500 text-white hover:bg-purple-600 transition-all duration-200 transform hover:scale-105 hover:shadow-lg px-6 py-2'
+          }, powerWordsTopics.length === 0 ? 'Proceed without any topics' : 'Proceed')
+        )
+      )
+    )
   );
 }
 
