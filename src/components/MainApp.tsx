@@ -144,6 +144,7 @@ export default function MainApp() {
   const [explanationSearchTerm, setExplanationSearchTerm] = useState('');
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [smartSelectAbortController, setSmartSelectAbortController] = useState<AbortController | null>(null);
+  const [powerWordsAbortController, setPowerWordsAbortController] = useState<AbortController | null>(null);
   const [wordLimitAlert, setWordLimitAlert] = useState<string | null>(null);
   const [showErrorBanner, setShowErrorBanner] = useState(false);
   const [showWordLimitAlert, setShowWordLimitAlert] = useState(false);
@@ -562,12 +563,16 @@ export default function MainApp() {
       setDisplayedTab('text');
     }
     
+    // Create abort controller for this request
+    const controller = new AbortController();
+    setPowerWordsAbortController(controller);
     setIsLoadingPowerWords(true);
     
     try {
       const response = await fetch('/api/v1/get-random-paragraph', {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
       });
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -590,10 +595,17 @@ export default function MainApp() {
         throw new Error('No text received from API');
       }
     } catch (error) {
+      // Check if the error is due to abort
+      if (error.name === 'AbortError') {
+        console.log('Power words request was aborted by user');
+        // Don't show error message for user-initiated abort
+        return;
+      }
       console.error('Error fetching power words:', error);
       showError('Failed to load power words. Please try again.');
     } finally {
       setIsLoadingPowerWords(false);
+      setPowerWordsAbortController(null);
     }
   };
 
@@ -1193,6 +1205,16 @@ export default function MainApp() {
       setIsSmartSelecting(false);
       setSmartSelectAbortController(null);
       toast.info('Smart word selection stopped');
+    }
+  };
+
+  const stopPowerWords = () => {
+    if (powerWordsAbortController) {
+      powerWordsAbortController.abort();
+      console.log('Power words request stopped by user');
+      setPowerWordsAbortController(null);
+      setIsLoadingPowerWords(false);
+      toast.info('Power words loading stopped');
     }
   };
 
@@ -2423,20 +2445,22 @@ export default function MainApp() {
                 // Get Power Words button - positioned below the file size text
                 (!text || !text.trim()) && React.createElement('div', { className: 'flex justify-center mt-2' },
                   React.createElement('button', {
-                    onClick: handlePowerWords,
-                    disabled: isLoadingPowerWords,
+                    onClick: isLoadingPowerWords ? stopPowerWords : handlePowerWords,
                     className: `inline-flex items-center justify-center rounded-md font-medium h-7 px-3 text-xs transition-all duration-200 transform hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] ${
                       isLoadingPowerWords 
-                        ? 'bg-purple-400 text-white cursor-not-allowed' 
+                        ? 'bg-red-500 text-white hover:bg-red-600' 
                         : 'vibgyor-gradient text-white hover:shadow-xl'
                     }`
                   },
                     isLoadingPowerWords 
-                      ? React.createElement('div', { className: 'animate-spin rounded-full h-2.5 w-2.5 border-b-2 border-white mr-1.5' })
+                      ? React.createElement('svg', { className: 'w-3.5 h-3.5 mr-1.5', fill: 'none', stroke: 'white', strokeWidth: '2', viewBox: '0 0 24 24' },
+                          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z' }),
+                          React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M9 9h6v6H9z' })
+                        )
                       : React.createElement('svg', { className: 'w-3.5 h-3.5 mr-1.5', fill: 'none', stroke: 'white', strokeWidth: '2', viewBox: '0 0 24 24' },
                           React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a1 1 0 01-1-1V9a1 1 0 011-1h1a2 2 0 100-4H4a1 1 0 01-1-1V4a1 1 0 011-1h3a1 1 0 001-1V4z' })
                         ),
-                    isLoadingPowerWords ? 'Loading...' : 'Get Power Words'
+                    isLoadingPowerWords ? 'Stop' : 'Get Power Words'
                   )
                 )
               )
@@ -2499,20 +2523,22 @@ export default function MainApp() {
                       
                       // Get Power Words button - only show when text is empty
                       !text.trim() && React.createElement('button', {
-                        onClick: handlePowerWords,
-                        disabled: isLoadingPowerWords,
+                        onClick: isLoadingPowerWords ? stopPowerWords : handlePowerWords,
                         className: `absolute bottom-4 right-4 inline-flex items-center justify-center rounded-md font-medium h-6 px-2 text-xs transition-all duration-200 transform hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] ${
                           isLoadingPowerWords 
-                            ? 'bg-purple-400 text-white cursor-not-allowed' 
+                            ? 'bg-red-500 text-white hover:bg-red-600' 
                             : 'vibgyor-gradient text-white hover:shadow-xl'
                         }`
                       },
                         isLoadingPowerWords 
-                          ? React.createElement('div', { className: 'animate-spin rounded-full h-2 w-2 border-b border-white mr-1' })
+                          ? React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'white', strokeWidth: '2', viewBox: '0 0 24 24' },
+                              React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z' }),
+                              React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M9 9h6v6H9z' })
+                            )
                           : React.createElement('svg', { className: 'w-3 h-3 mr-1', fill: 'none', stroke: 'white', strokeWidth: '2', viewBox: '0 0 24 24' },
                               React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a1 1 0 01-1-1V9a1 1 0 011-1h1a2 2 0 100-4H4a1 1 0 01-1-1V4a1 1 0 011-1h3a1 1 0 001-1V4z' })
                             ),
-                        isLoadingPowerWords ? 'Loading...' : 'Get Power Words'
+                        isLoadingPowerWords ? 'Stop' : 'Get Power Words'
                       ),
                       
                       // Power Words loading overlay for text canvas
@@ -2588,6 +2614,18 @@ export default function MainApp() {
                                 className: 'w-3 h-3 bg-purple-500 rounded-full animate-bounce',
                                 style: { animationDelay: '0.4s' }
                               })
+                            )
+                          ),
+                          React.createElement('div', { className: 'mt-6' },
+                            React.createElement('button', {
+                              onClick: stopPowerWords,
+                              className: 'inline-flex items-center justify-center rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 h-8 px-4 text-sm transition-all duration-200 transform hover:scale-[1.02]'
+                            },
+                              React.createElement('svg', { className: 'w-4 h-4 mr-2', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z' }),
+                                React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 9h6v6H9z' })
+                              ),
+                              'Stop'
                             )
                           )
                         )
